@@ -43,13 +43,19 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.get("/health", response_class=JSONResponse)
+async def health() -> JSONResponse:
+    return JSONResponse(status_code=200, content={"message": "OK"})
+
 @app.post("/outcome", response_class=JSONResponse)
 async def new_outcome(request: Request) -> JSONResponse:
-    data = await request.json()
     headers = request.headers
     token = headers.get("Authorization", "")
-    if token.strip() != os.getenv("JSW_TOKEN"):
-        return JSONResponse(status_code=403, content={"message", "Unauthorized" })
+
+    if token.strip("Bearer ") != os.getenv("JWT_TOKEN"):
+        return JSONResponse(status_code=403, content={"message": "Unauthorized" })
+
+    data = await request.body()
     print(f"Received: {data}")
 
     return JSONResponse(status_code=200, content={"message": "OK"})
