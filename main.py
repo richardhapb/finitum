@@ -1,7 +1,8 @@
 import bs4
 import dotenv
 import os
-from fastapi import FastAPI, Depends, HTTPException, Query, Request, JSONResponse
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import logging
@@ -43,14 +44,14 @@ app.add_middleware(
 )
 
 @app.post("/outcome", response_class=JSONResponse)
-async def new_outcome(request: Request) -> dict[str, str]:
+async def new_outcome(request: Request) -> JSONResponse:
     data = await request.json()
     headers = request.headers
     token = headers.get("Authorization", "")
     if token.strip() != os.getenv("JSW_TOKEN"):
-        return JSONResponse(status_code=403, detail={"message", "Unauthorized" })
+        return JSONResponse(status_code=403, content={"message", "Unauthorized" })
     print(f"Received: {data}")
 
-    return {"message": "OK"}
+    return JSONResponse(status_code=200, content={"message": "OK"})
 
 
