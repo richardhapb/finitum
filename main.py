@@ -52,7 +52,7 @@ async def new_outcome(request: Request) -> JSONResponse:
     headers = request.headers
     token = headers.get("Authorization", "")
 
-    if token.strip("Bearer ") != os.getenv("JWT_TOKEN"):
+    if token.strip("Bearer").strip() != os.getenv("JWT"):
         return JSONResponse(status_code=403, content={"message": "Unauthorized" })
 
     data = await request.body()
