@@ -1,5 +1,6 @@
 import bs4
 import dotenv
+import json
 import os
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
@@ -55,9 +56,16 @@ async def new_outcome(request: Request) -> JSONResponse:
     if token.strip("Bearer").strip() != os.getenv("JWT"):
         return JSONResponse(status_code=403, content={"message": "Unauthorized" })
 
-    data = await request.body()
-    print(f"Received: {data}")
+    data = clean_body(await request.body())
+    try:
+        deserialized = json.loads(data)
+    except json.JSONDecodeError as e:
+        logger.error("Error deserializing json: %s", e)
+        return JSONResponse(status_code=400, content={"message": "Unable to deserialize JSON"})
+    print(f"Received: {deserialized}")
 
     return JSONResponse(status_code=200, content={"message": "OK"})
 
+def clean_body(body: bytes) -> bytes:
+    return body.replace(b'\n', b'')
 

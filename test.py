@@ -1,11 +1,7 @@
-text = b'{\n    "subject": "Cargo en Cuenta",\n     "content": "
-[http://contentz.mkt8988.com/lp/14944/107881/BCH_nuevo.png] Richard Hector
-Alexander Pe a Bonifaz:Te informamos que se ha realizado una compra por $2.872
-con cargo a Cuenta ****7204 en GRAN AVENIDA el 12/09/2025 15:20.\nRevisa Saldos
-y Movimientos en App Mi Banco o Banco en L\xc3\xadnea.\n\n\nM\xc3\xa1s
-informaci\xc3\xb3n 60\xe2\x80\x8d0 63\xe2\x80\x8d7
-37\xe2\x80\x8d37.\n\n[http://contentz.mkt8988.com/lp/14944/107981/aleta_BCH.png]\nSigue
-estos consejos para evitar
+import json
+
+def test_email_parsing():
+    text = b"""{\n    "subject": "Cargo en Cuenta",\n     "content": "
 fraudes\n\n[http://contentz.mkt8988.com/lp/14944/107981/ticket_BCH.png] Nunca
 te llamaremos solicitando tus claves o informaci\xc3\xb3n
 personal.\n\n[http://contentz.mkt8988.com/lp/14944/107981/ticket_BCH.png] Nunca
@@ -32,4 +28,9 @@ www\xe2\x80\x8e.\xe2\x80\x8dcmfchile\xe2\x80\x8e.\xe2\x80\x8dcl
 \xc2\xa9.\nTodos los derechos reservados.\nHoja
 [http://contentz.mkt8988.com/lp/14944/107981/hoja.png] Comprometidos por un
 medio ambiente mejor, prefiera los medios digitales al papel impreso.
-[http://bancochile.cl/img/PS76JRn/pIolTcsauGpvWr527XL/belEcd0GnH+ooDQ=ttp://bancochile.cl/img/${id}]"\n}'
+[http://bancochile.cl/img/PS76JRn/pIolTcsauGpvWr527XL/belEcd0GnH+ooDQ=ttp://bancochile.cl/img/${id}]"\n}"""
+
+    data = json.loads(text.replace(b'\n', b''))
+
+    assert isinstance(data, dict)
+
