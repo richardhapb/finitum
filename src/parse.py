@@ -1,9 +1,15 @@
 import re
+import typing
 import pytz
 from datetime import datetime
 from enum import Enum
 
+from sqlmodel import Session
+
 import utils
+
+if typing.TYPE_CHECKING:
+    from models import Expense as DBExpense, Transference as DBTransference
 
 logger = utils.get_logger()
 
@@ -68,9 +74,7 @@ class Expense(Transaction):
     COMPRA_GIRO = r"compra|giro en Cajero"
     AMOUNT_REGEX = rf"(?:{COMPRA_GIRO}) por (\S+)"
     COMMERCE_REGEX = r"compra por \S+ con \D+\d+ en (\D+)?"
-    DATE_REGEX = (
-        rf"(?:{COMPRA_GIRO}) por \S+ con \D+.* (?:en \D+)? .* el (\d+\d+/\d+/\d+\s+\d+:\d+)"
-    )
+    DATE_REGEX = rf"(?:{COMPRA_GIRO}) por \S+ con \D+.* (?:en \D+)? .* el (\d+\d+/\d+/\d+\s+\d+:\d+)"
 
     def __init__(self, amount_str: str, commerce_str: str, date_str: str):
         self._parse_amount(amount_str)
@@ -110,6 +114,20 @@ class Expense(Transaction):
         date = dates[0] if dates else ""
         return date
 
+    def to_db_model(self) -> "DBExpense":
+        """Convert to database model"""
+
+        from models import Expense as DBExpense
+
+        return DBExpense(
+            commerce=self.commerce,
+            amount=self.value,
+            currency=self.currency,
+            category=self.category,
+            date=self.date,
+            description="Extracted from email",
+        )
+
 
 class Transference(Transaction):
     recipient: str
@@ -141,3 +159,49 @@ class Transference(Transaction):
         recipients = re.findall(cls.RECIPIENT_REGEX, content)
         recipient = recipients[0] if recipients else ""
         return recipient
+
+    def to_db_model(self) -> "DBTransference":
+        """Convert to database model"""
+
+        from models import Transference as DBTransference
+
+        return DBTransference(
+            recipient=self.recipient,
+            amount=self.value,
+            currency=self.currency,
+            category=self.category,
+            date=self.date,
+            description="Extracted from email",
+        )
+
+
+def save_extracted_expense(content: str, session: Session) -> "DBExpense":
+    """Extract expense from text content and save to database"""
+
+    # Parse expense from text
+    expense_parser = Expense.get_expense(content)
+
+    # Convert to database model
+    db_expense = expense_parser.to_db_model()
+
+    # Save to database
+    session.add(db_expense)
+    session.commit()
+    session.refresh(db_expense)
+    return db_expense
+
+
+def save_extracted_transference(content: str, date_str: str, session: Session) -> "DBTransference":
+    """Extract transference from text content and save to database"""
+
+    # Parse transference from text
+    transference_parser = Transference.get_transference(content, date_str)
+
+    # Convert to database model
+    db_transference = transference_parser.to_db_model()
+
+    # Save to database
+    session.add(db_transference)
+    session.commit()
+    session.refresh(db_transference)
+    return db_transference
