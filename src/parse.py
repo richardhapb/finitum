@@ -1,4 +1,5 @@
 import re
+import pytz
 from datetime import datetime
 from enum import Enum
 
@@ -6,36 +7,26 @@ import utils
 
 logger = utils.get_logger()
 
-AMOUNT_REGEX = r"compra por (\S+)"
-COMPRA_GIRO = r"compra|giro en Cajero"
-COMMERCE_REGEX = rf"(?:{COMPRA_GIRO}) por \S+ con \D+\d+ en (\D+)"
-DATE_REGEX = rf"(?:{COMPRA_GIRO}) por \S+ con \D+\d+ en \D+.*(\d+\d+/\d+/\d+\s+\d+:\d+)"
+TZ = pytz.timezone("America/Santiago")
+
 
 class Currency(Enum):
     USD = "usd"
     CLP = "clp"
 
+
 class ExpenseCategory(Enum):
     GENERAL = "general"
     ONLINE_PLATFORM = "online_platform"
 
-class Expense:
+
+class Transaction:
     currency: Currency
     value: float
     category: ExpenseCategory
-    commerce: str
     date: datetime
 
-    def __init__(self, amount_str: str, commerce_str: str, date_str: str):
-        self._parse_amount(amount_str)
-        self.commerce = _sanitize_commerce_str(commerce_str)
-        self.category = _get_category(self.commerce)
-        try:
-            self.date = datetime.strptime(date_str, "%d/%m/%Y %H:%M")
-        except ValueError:
-            logger.exception("Error parsing date")
-            self.date = datetime.now()
-
+    AMOUNT_REGEX = r"compra por (\S+)"
 
     def _parse_amount(self, amount_str: str) -> None:
         if not amount_str:
@@ -55,40 +46,98 @@ class Expense:
             logger.exception("Error parsing amount")
             self.value = 0.0
 
-def get_expense(content: str) -> Expense:
+    # Amount
 
-    amount_str = _get_amount_str(content)
-    commerce_str = _get_commerce_str(content)
-    date_str = _get_date_str(content)
+    @classmethod
+    def _get_amount_str(cls, content: str) -> str:
+        amounts = re.findall(cls.AMOUNT_REGEX, content)
+        amount = amounts[0] if amounts else ""
+        return amount
 
-    return Expense(amount_str, commerce_str, date_str)
+    @staticmethod
+    def _get_category(commerce_str: str) -> ExpenseCategory:
+        if commerce_str in ["Upwork"]:
+            return ExpenseCategory.ONLINE_PLATFORM
+        return ExpenseCategory.GENERAL
 
-# Amount
 
-def _get_amount_str(content: str) -> str:
-    amounts = re.findall(AMOUNT_REGEX, content)
-    amount = amounts[0] if amounts else ""
-    return amount
+class Expense(Transaction):
+    commerce: str
 
-# Commerce / Category
+    # REGEX
+    COMPRA_GIRO = r"compra|giro en Cajero"
+    AMOUNT_REGEX = rf"(?:{COMPRA_GIRO}) por (\S+)"
+    COMMERCE_REGEX = r"compra por \S+ con \D+\d+ en (\D+)?"
+    DATE_REGEX = (
+        rf"(?:{COMPRA_GIRO}) por \S+ con \D+.* (?:en \D+)? .* el (\d+\d+/\d+/\d+\s+\d+:\d+)"
+    )
 
-def _get_commerce_str(content: str) -> str:
-    commerces = re.findall(COMMERCE_REGEX, content)
-    commerce = commerces[0] if commerces else ""
-    return commerce
+    def __init__(self, amount_str: str, commerce_str: str, date_str: str):
+        self._parse_amount(amount_str)
+        self.commerce = self._sanitize_commerce_str(commerce_str)
+        self.category = self._get_category(self.commerce)
+        try:
+            self.date = datetime.strptime(date_str, "%d/%m/%Y %H:%M")
+        except ValueError:
+            logger.exception("Error parsing date")
+            self.date = datetime.now()
 
-def _get_category(commerce_str: str) -> ExpenseCategory:
-    if commerce_str in ["Upwork"]:
-        return ExpenseCategory.ONLINE_PLATFORM
-    return ExpenseCategory.GENERAL
+    @classmethod
+    def get_expense(cls, content: str) -> "Expense":
+        amount_str = cls._get_amount_str(content)
+        commerce_str = cls._get_commerce_str(content)
+        date_str = cls._get_date_str(content)
 
-def _sanitize_commerce_str(commerce_str: str) -> str:
-    return commerce_str.strip("").strip("-").strip()
+        return Expense(amount_str, commerce_str, date_str)
 
-# Date
+    # Commerce / Category
 
-def _get_date_str(content: str) -> str:
-    dates = re.findall(DATE_REGEX, content)
-    date = dates[0] if dates else ""
-    return date
+    @classmethod
+    def _get_commerce_str(cls, content: str) -> str:
+        commerces = re.findall(cls.COMMERCE_REGEX, content)
+        commerce = commerces[0] if commerces else ""
+        return commerce
 
+    @staticmethod
+    def _sanitize_commerce_str(commerce_str: str) -> str:
+        return commerce_str.strip("").strip("-").strip()
+
+    # Date
+
+    @classmethod
+    def _get_date_str(cls, content: str) -> str:
+        dates = re.findall(cls.DATE_REGEX, content)
+        date = dates[0] if dates else ""
+        return date
+
+
+class Transference(Transaction):
+    recipient: str
+
+    AMOUNT_REGEX = r"Monto\s*(\S+)"
+    RECIPIENT_REGEX = r"(?:Nombre y Apellido |Nombre )(.*) Rut"
+
+    def __init__(self, amount_str: str, recipient_str: str, date_str: str):
+        self._parse_amount(amount_str)
+        self.recipient = recipient_str
+        self.category = self._get_category(self.recipient)
+        try:
+            self.date = datetime.fromisoformat(date_str).astimezone(TZ)
+        except ValueError:
+            logger.exception("Error parsing date")
+            self.date = datetime.now()
+
+    @classmethod
+    def get_transference(cls, content: str, date_str: str) -> "Transference":
+        amount_str = cls._get_amount_str(content)
+        commerce_str = cls._get_recipient_str(content)
+
+        return Transference(amount_str, commerce_str, date_str)
+
+    # Commerce / Category
+
+    @classmethod
+    def _get_recipient_str(cls, content: str) -> str:
+        recipients = re.findall(cls.RECIPIENT_REGEX, content)
+        recipient = recipients[0] if recipients else ""
+        return recipient

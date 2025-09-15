@@ -7,7 +7,15 @@ dependencies = [
     "fastapi[standard]>=0.116.1",
     "granian>=2.5.3",
     "pytest>=8.4.2",
+    "pytz>=2025.2",
 ]
+
+[tool.ruff]
+target-version = "py312"
+
+# Formatting
+line-length = 120
+indent-width = 4
 
 [tool.pytest.ini_options]
 addopts = [
