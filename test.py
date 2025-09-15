@@ -1,8 +1,11 @@
+from datetime import datetime
+import re
 import json
+from parse import Currency, ExpenseCategory, get_expense
 
 def test_email_parsing():
-    text = b"""{\n    "subject": "Cargo en Cuenta",\n     "content": "
-fraudes\n\n[http://contentz.mkt8988.com/lp/14944/107981/ticket_BCH.png] Nunca
+    text = b"""{\n    "subject": "Cargo en Cuenta",\n     "time": "2025-09-12T20:24:24.000Z",
+\n     "content": " fraudes\n\n[http://contentz.mkt8988.com/lp/14944/107981/ticket_BCH.png] Nunca
 te llamaremos solicitando tus claves o informaci\xc3\xb3n
 personal.\n\n[http://contentz.mkt8988.com/lp/14944/107981/ticket_BCH.png] Nunca
 hagas click en links ni descargues archivos adjuntos de correos
@@ -33,4 +36,85 @@ medio ambiente mejor, prefiera los medios digitales al papel impreso.
     data = json.loads(text.replace(b'\n', b''))
 
     assert isinstance(data, dict)
+
+
+def test_amount_data_cc():
+    parsed_usd = {
+        "subject": "Compra con Terjeta de Crédito",
+        "time": "2025-09-12T20:24:24.000Z",
+        "content": """ 
+        [http://contentz.mkt8988.com/lp/14944/107881/BCH_nuevo.png] Richard Hector Alexander Pe a Bonifaz:Te
+        informamos que se ha realizado una compra por US$15,20 con Tarjeta de Crédito ****2662 en Upwork
+        -845399262ConnectsDublin IE el 12/09/2025 17:24.Revisa Saldos y Movimientos en App Mi Banco o Banco en
+        Línea.Más información 60\u200d0 63\u200d7
+        37\u200d37.[http://contentz.mkt8988.com/lp/14944/107981/aleta_BCH.png]Sigue estos consejos para evitar
+        fraudes[http://contentz.mkt8988.com/lp/14944/107981/ticket_BCH.png] Nunca te llamaremos solicitando tus
+        claves o información personal.[http://contentz.mkt8988.com/lp/14944/107981/ticket_BCH.png] Nunca hagas click
+        en links ni descargues archivos adjuntos de correos
+        sospechosos.[http://contentz.mkt8988.com/lp/14944/107981/ticket_BCH.png] Ingresa a la página del Banco
+        digitando la dirección en la barra de tu navegador.Realiza todo de forma ágil y simple usando nuestras
+        aplicaciones*[http://contentz.mkt8988.com/lp/14944/107981/mi_banco.png]Mi
+        Banco[http://contentz.mkt8988.com/lp/14944/107881/MIPASSnuevo.png]\u200dMi
+        Pass[http://contentz.mkt8988.com/lp/14944/107981/mi_inversion.png]Mi
+        InversiónEncuéntranos[http://contentz.mkt8988.com/lp/14944/107981/facebook.png]
+        bancochile\u200e.\u200dcl[http://contentz.mkt8988.com/lp/14944/107881/twe-X-BCH.png]
+        @\u200dAyudaBancoChile[http://contentz.mkt8988.com/lp/14944/107981/instagram.png]
+        @\u200dBancodechile[http://contentz.mkt8988.com/lp/14944/107981/telefono_2.png] Banca Telefónica60\u200d0
+        63\u200d7 37\u200d37* Por seguridad, descarga las aplicaciones solo en las tiendas Google Play y App Store.
+        Las Apps no están disponibles para teléfonos desbloqueados (Jailbreak o Rooteado).Este mensaje ha sido
+        enviado a 'richard.penab@gmail.com' con información exclusiva para clientes del banco. Banco de Chile. Casa
+        Matriz: Ahumada 251, Santiago de Chile.Infórmese sobre la garantía estatal de los depósitos en su banco o
+        en www\u200e.\u200dcmfchile\u200e.\u200dcl ©.Todos los derechos reservados.Hoja
+        [http://contentz.mkt8988.com/lp/14944/107981/hoja.png] Comprometidos por un medio ambiente mejor, prefiera
+        los medios digitales al papel impreso. 
+        [http://bancochile.cl/img/PS76JRn/pIolTcsauGpvWl9Atyie7MwN8CHjl3MRFXk=ttp://bancochile.cl/img/${id}]
+        """.replace("\n", "")
+    }
+
+    parsed_clp = {
+        "subject": "Compra con Terjeta de Crédito",
+        "time": "2025-09-12T20:24:24.000Z",
+        "content": """ 
+        [http://contentz.mkt8988.com/lp/14944/107881/BCH_nuevo.png] Richard Hector Alexander Pe a Bonifaz:Te
+        informamos que se ha realizado una compra por $7.050 con Tarjeta de Crédito ****2662 en Upwork
+        -845399262ConnectsDublin IE el 09/09/2025 17:24.Revisa Saldos y Movimientos en App Mi Banco o Banco en
+        Línea.Más información 60\u200d0 63\u200d7
+        37\u200d37.[http://contentz.mkt8988.com/lp/14944/107981/aleta_BCH.png]Sigue estos consejos para evitar
+        fraudes[http://contentz.mkt8988.com/lp/14944/107981/ticket_BCH.png] Nunca te llamaremos solicitando tus
+        claves o información personal.[http://contentz.mkt8988.com/lp/14944/107981/ticket_BCH.png] Nunca hagas click
+        en links ni descargues archivos adjuntos de correos
+        sospechosos.[http://contentz.mkt8988.com/lp/14944/107981/ticket_BCH.png] Ingresa a la página del Banco
+        digitando la dirección en la barra de tu navegador.Realiza todo de forma ágil y simple usando nuestras
+        aplicaciones*[http://contentz.mkt8988.com/lp/14944/107981/mi_banco.png]Mi
+        Banco[http://contentz.mkt8988.com/lp/14944/107881/MIPASSnuevo.png]\u200dMi
+        Pass[http://contentz.mkt8988.com/lp/14944/107981/mi_inversion.png]Mi
+        InversiónEncuéntranos[http://contentz.mkt8988.com/lp/14944/107981/facebook.png]
+        bancochile\u200e.\u200dcl[http://contentz.mkt8988.com/lp/14944/107881/twe-X-BCH.png]
+        @\u200dAyudaBancoChile[http://contentz.mkt8988.com/lp/14944/107981/instagram.png]
+        @\u200dBancodechile[http://contentz.mkt8988.com/lp/14944/107981/telefono_2.png] Banca Telefónica60\u200d0
+        63\u200d7 37\u200d37* Por seguridad, descarga las aplicaciones solo en las tiendas Google Play y App Store.
+        Las Apps no están disponibles para teléfonos desbloqueados (Jailbreak o Rooteado).Este mensaje ha sido
+        enviado a 'richard.penab@gmail.com' con información exclusiva para clientes del banco. Banco de Chile. Casa
+        Matriz: Ahumada 251, Santiago de Chile.Infórmese sobre la garantía estatal de los depósitos en su banco o
+        en www\u200e.\u200dcmfchile\u200e.\u200dcl ©.Todos los derechos reservados.Hoja
+        [http://contentz.mkt8988.com/lp/14944/107981/hoja.png] Comprometidos por un medio ambiente mejor, prefiera
+        los medios digitales al papel impreso. 
+        [http://bancochile.cl/img/PS76JRn/pIolTcsauGpvWl9Atyie7MwN8CHjl3MRFXk=ttp://bancochile.cl/img/${id}]
+        """.replace("\n", "")
+    }
+
+
+    expense = get_expense(parsed_usd["content"])
+    assert expense.value == 15.2
+    assert expense.currency == Currency.USD
+    assert expense.category == ExpenseCategory.ONLINE_PLATFORM, f"Invalid category for {expense.commerce}"
+    assert expense.date == datetime(2025, 9, 12, 17, 24)
+
+    expense = get_expense(parsed_clp["content"])
+    assert expense.value == 7050.0
+    assert expense.currency == Currency.CLP
+    assert expense.category == ExpenseCategory.ONLINE_PLATFORM
+    assert expense.date == datetime(2025, 9, 9, 17, 24)
+
+
 

@@ -3,7 +3,6 @@ version = "0.0.1"
 name = "fin-make"
 requires-python = ">=3.12"
 dependencies = [
-    "bs4>=0.0.2",
     "dotenv>=0.9.9",
     "fastapi[standard]>=0.116.1",
     "granian>=2.5.3",

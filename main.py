@@ -1,4 +1,3 @@
-import bs4
 import dotenv
 import json
 import os
@@ -6,16 +5,10 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
-import logging
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    handlers=[logging.StreamHandler()],
-)
-logger = logging.getLogger("fin-make")
+import utils
 
+logger = utils.get_logger()
 
 @asynccontextmanager
 async def lifespan(app_service: FastAPI):
@@ -31,7 +24,7 @@ async def lifespan(app_service: FastAPI):
 
 app = FastAPI(
     title="Finance manager",
-    description="Handle the outcomes and manage finance elements",
+    description="Handle the expenses and manage finance elements",
     version="1.0.0",
     lifespan=lifespan
 )
@@ -48,8 +41,8 @@ app.add_middleware(
 async def health() -> JSONResponse:
     return JSONResponse(status_code=200, content={"message": "OK"})
 
-@app.post("/outcome", response_class=JSONResponse)
-async def new_outcome(request: Request) -> JSONResponse:
+@app.post("/expense", response_class=JSONResponse)
+async def new_expense(request: Request) -> JSONResponse:
     headers = request.headers
     token = headers.get("Authorization", "")
 
