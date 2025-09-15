@@ -7,8 +7,9 @@ import utils
 logger = utils.get_logger()
 
 AMOUNT_REGEX = r"compra por (\S+)"
-COMMERCE_REGEX = r"compra por \S+ con \D+\d+ en (\D+)"
-DATE_REGEX = r"compra por \S+ con \D+\d+ en \D+.*(\d+\d+/\d+/\d+\s+\d+:\d+)"
+COMPRA_GIRO = r"compra|giro en Cajero"
+COMMERCE_REGEX = rf"(?:{COMPRA_GIRO}) por \S+ con \D+\d+ en (\D+)"
+DATE_REGEX = rf"(?:{COMPRA_GIRO}) por \S+ con \D+\d+ en \D+.*(\d+\d+/\d+/\d+\s+\d+:\d+)"
 
 class Currency(Enum):
     USD = "usd"

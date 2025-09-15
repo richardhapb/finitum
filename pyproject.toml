@@ -8,3 +8,11 @@ dependencies = [
     "granian>=2.5.3",
     "pytest>=8.4.2",
 ]
+
+[tool.pytest.ini_options]
+addopts = [
+    "--import-mode=importlib",
+]
+pythonpath = "src"
+python_files = ["test_*.py", "*_tests.py"]
+

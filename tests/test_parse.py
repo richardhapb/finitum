@@ -1,5 +1,4 @@
 from datetime import datetime
-import re
 import json
 from parse import Currency, ExpenseCategory, get_expense
 
