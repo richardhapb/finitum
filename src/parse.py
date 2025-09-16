@@ -6,6 +6,7 @@ import unicodedata
 from datetime import datetime
 from enum import Enum
 from sqlmodel import Session
+from contextlib import suppress
 
 import utils
 
@@ -24,7 +25,6 @@ class Currency(Enum):
 
 class ExpenseCategory(Enum):
     GENERAL = "general"
-    ONLINE_PLATFORM = "online_platform"  # kept from your original
 
     # New categories (English titles)
     FOOD = "food"
@@ -175,18 +175,20 @@ class Expense(Transaction):
     # REGEX
     COMPRA_GIRO = r"compra|giro en Cajero"
     AMOUNT_REGEX = rf"(?:{COMPRA_GIRO}) por (\S+)"
-    COMMERCE_REGEX = r"compra por \S+ con \D+\d+ en (\D+)?"
-    DATE_REGEX = rf"(?:{COMPRA_GIRO}) por \S+ con \D+.* (?:en \D+)? .* el (\d+\d+/\d+/\d+\s+\d+:\d+)"
+    COMMERCE_REGEX = r"compra por \S+ con \D+\d+ en (\D+) .* el"
+    DATE_REGEX = r"el\s*(\d{1,2}/\d{1,2}/\d{4}\s+\d{1,2}:\d{2})"
 
     def __init__(self, amount_str: str, commerce_str: str, date_str: str):
         self._parse_amount(amount_str)
         self.commerce = self._sanitize_commerce_str(commerce_str)
         self.category = self._get_category(self.commerce)
+
         try:
-            self.date = datetime.strptime(date_str, "%d/%m/%Y %H:%M")
+            dt = datetime.strptime(date_str, "%d/%m/%Y %H:%M")
         except ValueError:
-            logger.exception("Error parsing date")
-            self.date = datetime.now()
+            logger.exception("Error parsing date (got %r). Falling back to now().", date_str)
+            dt = datetime.now(TZ)
+        self.date = dt
 
     @classmethod
     def get_expense(cls, content: str) -> "Expense":
@@ -212,9 +214,8 @@ class Expense(Transaction):
 
     @classmethod
     def _get_date_str(cls, content: str) -> str:
-        dates = re.findall(cls.DATE_REGEX, content)
-        date = dates[0] if dates else ""
-        return date
+        m = re.search(cls.DATE_REGEX, content, flags=re.IGNORECASE | re.DOTALL)
+        return m.group(1).strip() if m else ""
 
     def to_db_model(self) -> "DBExpense":
         """Convert to database model"""

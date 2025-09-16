@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 import json
-from main import clean_body
+from server import clean_body
 from parse import Currency, ExpenseCategory, Expense, Transference, TZ
 
 
@@ -41,7 +41,7 @@ medio ambiente mejor, prefiera los medios digitales al papel impreso.
 
 def test_amount_data_cc():
     parsed_usd = {
-        "subject": "Compra con Terjeta de Crédito",
+        "subject": "Compra con Tarjeta de Crédito",
         "time": "2025-09-12T20:24:24.000Z",
         "content": """
         [http://contentz.mkt8988.com/lp/14944/107881/BCH_nuevo.png] Richard Hector Alexander Pe a Bonifaz:Te
@@ -107,13 +107,15 @@ def test_amount_data_cc():
     expense = Expense.get_expense(parsed_usd["content"])
     assert expense.value == 15.2
     assert expense.currency == Currency.USD
-    assert expense.category == ExpenseCategory.ONLINE_PLATFORM, f"Invalid category for {expense.commerce}"
+    assert expense.commerce == "Upwork"
+    assert expense.category == ExpenseCategory.ONLINE, f"Invalid category for {expense.commerce}"
     assert expense.date == datetime(2025, 9, 12, 17, 24)
 
     expense = Expense.get_expense(parsed_clp["content"])
     assert expense.value == 7050.0
+    assert expense.commerce == "Upwork"
     assert expense.currency == Currency.CLP
-    assert expense.category == ExpenseCategory.ONLINE_PLATFORM
+    assert expense.category == ExpenseCategory.ONLINE
     assert expense.date == datetime(2025, 9, 9, 17, 24)
 
 
