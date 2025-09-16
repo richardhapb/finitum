@@ -54,7 +54,7 @@ async def new_expense(request: Request, session: Session = Depends(get_session))
     headers = request.headers
     token = headers.get("Authorization", "")
 
-    if token.strip("Bearer").strip() != os.getenv("JWT"):
+    if not is_token_valid(token):
         return JSONResponse(status_code=403, content={"message": "Unauthorized"})
 
     data = clean_body(await request.body())
@@ -74,11 +74,20 @@ async def new_expense(request: Request, session: Session = Depends(get_session))
         return JSONResponse(status_code=400, content={"message": "Unable to deserialize JSON"})
 
 
-
 @app.get("/expense")
-def get_expenses(session: Session = Depends(get_session)):
+def get_expenses(request: Request, session: Session = Depends(get_session)) -> JSONResponse:
+    headers = request.headers
+    token = headers.get("Authorization", "")
+
+    if not is_token_valid(token):
+        return JSONResponse(status_code=403, content={"message": "Unauthorized"})
+
     expenses = session.exec(select(DBExpense)).all()
-    return expenses
+    return JSONResponse(status_code=200, content={"expenses": list(expenses)})
+
+
+def is_token_valid(token: str) -> bool:
+    return token.strip("Bearer").strip() == os.getenv("JWT")
 
 
 def clean_body(body: bytes) -> bytes:
