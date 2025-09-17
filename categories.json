@@ -1,164 +1,170 @@
 {
-  "Food": [
-    "JUMBO",
-    "LIDER",
-    "TOTTUS",
-    "SUSHI",
-    "UNIMARC",
-    "MCDONALDS",
-    "BURGER KING",
-    "PIZZA HUT",
-    "DOMINOS",
-    "SUBWAY",
-    "KFC",
-    "PIZZA",
-    "STA ISABEL"
-  ],
-  "Education": [
-    "LIBRERIA",
-    "UNAP",
-    "CURSO",
-    "ARTURO PRAT"
-  ],
-  "Transport": [
-    "UBER",
-    "CABIFY",
-    "COPEC",
-    "SERVIPAG",
-    "TRONCAL",
-    "PEAJE",
-    "WASH",
-    "HOSPITALES",
-    "PARKING"
-  ],
-  "Services": [
-    "TELEFONO",
-    "GASCO",
-    "CHILECTRA",
-    "CGE",
-    "VTR",
-    "ENTEL"
-  ],
-  "Transfers": [
-    "TRASPASO"
-  ],
-  "Clothing": [
-    "ZARA",
-    "H&M",
-    "PARIS",
-    "RIPLEY",
-    "FALABELLA",
-    "NIKE",
-    "PUMA",
-    "WEINBRENNER",
-    "SPARTA",
-    "LA POLAR"
-  ],
-  "Entertainment": [
-    "CINE",
-    "NETFLIX",
-    "SPOTIFY",
-    "GOOGLE",
-    "AMAZON",
-    "STEAM"
-  ],
-  "Sports": [
-    "DEPORTES",
-    "SPORTLIFE"
-  ],
-  "Loan": [
-    "MIGUEL"
-  ],
-  "ATM_withdrawal": [
-    "GIRO"
-  ],
-  "Investments": [
-    "BRYAN"
-  ],
-  "Housing": [
-    "CONDOMINIO",
-    "LUZ",
-    "AGUA",
-    "WALDO",
-    "RECAUDACION Y PAGOS DE SERVICIOS",
-    "SODIMAC",
-    "CASA IDEAS",
-    "EASY",
-    "FERRETERIA"
-  ],
-  "External_food": [
-    "EMPANADA",
-    "PUNTO CLAVE",
-    "BURGER",
-    "CIUDAD NUEVA",
-    "TRADICIONES DEL PER",
-    "SPACIO 1",
-    "CAFETERIA",
-    "PAPA JOHNS",
-    "ANTOJITOS",
-    "PERU DIVINOS",
-    "SUMUP",
-    "MINIMARKET",
-    "PEDIDOSYA",
-    "BOTILLERIA",
-    "DOGGIS",
-    "MARISQUERIA",
-    "SHAWARMA",
-    "MC DONALDS",
-    "RACONTO",
-    "KENTUCKY"
-  ],
-  "Recreation": [
-    "TICKETPRO"
-  ],
-  "Online": [
-    "MERPAGO",
-    "MERCADO PAGO",
-    "LUCID",
-    "APPLE",
-    "MERCADOPAGO",
-    "MARKETPLACE",
-    "EBAY",
-    "ALIEXPRESS",
-    "GITHUB",
-    "DISNEY",
-    "NETFLIX",
-    "THE NEW YORK TIMES",
-    "FLOW",
-    "CENCOSUD FIDELIDAD SANTIAGO",
-    "WEB PAY",
-    "MP *MERCADO",
-    "AWS",
-    "UPWORK"
-  ],
-  "Commissions": [
-    "COMISION",
-    "IMPUESTO",
-    "INTERES"
-  ],
-  "Travel": [
-    "SKY",
-    "LATAM",
-    "JETSMART",
-    "PLUSS",
-    "AEROPUERTO",
-    "TUR BUS"
-  ],
-  "Health": [
-    "MEGASALUD"
-  ],
-  "Family": [
-    "RED KIDS"
-  ],
-  "Laundry": [
-    "PRONTOMATIC"
-  ],
-  "Books": [
-    "METALES PESADOS",
-    "ULISES",
-    "BUSCALIBRE"
-  ],
-  "Purified_water": [
-    "AMAWA"
-  ]
+    "Food": [
+        "JUMBO",
+        "LIDER",
+        "TOTTUS",
+        "SUSHI",
+        "UNIMARC",
+        "MCDONALDS",
+        "BURGER KING",
+        "PIZZA HUT",
+        "DOMINOS",
+        "SUBWAY",
+        "KFC",
+        "PIZZA",
+        "STA ISABEL",
+        "MINIMARKET",
+        "GRAN AVENIDA"
+    ],
+    "Education": [
+        "LIBRERIA",
+        "UNAP",
+        "CURSO",
+        "ARTURO PRAT"
+    ],
+    "Transport": [
+        "UBER",
+        "CABIFY",
+        "COPEC",
+        "SERVIPAG",
+        "TRONCAL",
+        "PEAJE",
+        "WASH",
+        "MANUEL MONTT",
+        "MOVIRED",
+        "LO OVALLE",
+        "HOSPITALES",
+        "PARKING"
+    ],
+    "Services": [
+        "TELEFONO",
+        "GASCO",
+        "CHILECTRA",
+        "CGE",
+        "VTR",
+        "ENTEL"
+    ],
+    "Transfers": [
+        "TRASPASO"
+    ],
+    "Clothing": [
+        "ZARA",
+        "H&M",
+        "PARIS",
+        "RIPLEY",
+        "FALABELLA",
+        "NIKE",
+        "PUMA",
+        "WEINBRENNER",
+        "SPARTA",
+        "LA POLAR"
+    ],
+    "Entertainment": [
+        "CINE",
+        "NETFLIX",
+        "SPOTIFY",
+        "GOOGLE",
+        "AMAZON",
+        "STEAM"
+    ],
+    "Sports": [
+        "DEPORTES",
+        "SPORTLIFE"
+    ],
+    "Loan": [
+        "MIGUEL"
+    ],
+    "ATM_withdrawal": [
+        "GIRO"
+    ],
+    "Investments": [
+        "BRYAN"
+    ],
+    "Housing": [
+        "CONDOMINIO",
+        "LUZ",
+        "AGUA",
+        "WALDO",
+        "RECAUDACION Y PAGOS DE SERVICIOS",
+        "SODIMAC",
+        "CASA IDEAS",
+        "EASY",
+        "FERRETERIA"
+    ],
+    "External_food": [
+        "EMPANADA",
+        "PUNTO CLAVE",
+        "BURGER",
+        "CIUDAD NUEVA",
+        "TRADICIONES DEL PER",
+        "SPACIO 1",
+        "CAFETERIA",
+        "PAPA JOHNS",
+        "ANTOJITOS",
+        "PERU DIVINOS",
+        "SUMUP",
+        "MINIMARKET",
+        "PEDIDOSYA",
+        "BOTILLERIA",
+        "DOGGIS",
+        "MARISQUERIA",
+        "SHAWARMA",
+        "MC DONALDS",
+        "RACONTO",
+        "KENTUCKY"
+    ],
+    "Recreation": [
+        "TICKETPRO"
+    ],
+    "Online": [
+        "MERPAGO",
+        "MERCADO PAGO",
+        "LUCID",
+        "APPLE",
+        "MERCADOPAGO",
+        "MARKETPLACE",
+        "EBAY",
+        "ALIEXPRESS",
+        "GITHUB",
+        "DISNEY",
+        "NETFLIX",
+        "THE NEW YORK TIMES",
+        "FLOW",
+        "CENCOSUD FIDELIDAD SANTIAGO",
+        "WEB PAY",
+        "MP *MERCADO",
+        "AWS",
+        "UPWORK"
+    ],
+    "Commissions": [
+        "COMISION",
+        "IMPUESTO",
+        "INTERES"
+    ],
+    "Travel": [
+        "SKY",
+        "LATAM",
+        "JETSMART",
+        "PLUSS",
+        "AEROPUERTO",
+        "TUR BUS"
+    ],
+    "Health": [
+        "MEGASALUD"
+    ],
+    "Family": [
+        "RED KIDS",
+        "FINTOC"
+    ],
+    "Laundry": [
+        "PRONTOMATIC"
+    ],
+    "Books": [
+        "METALES PESADOS",
+        "ULISES",
+        "BUSCALIBRE"
+    ],
+    "Purified_water": [
+        "AMAWA"
+    ]
 }
