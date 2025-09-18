@@ -1,13 +1,23 @@
+# utils.py
 import logging
+import sys
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    handlers=[logging.StreamHandler()],
-)
-logger = logging.getLogger("fin-make")
 
 def get_logger() -> logging.Logger:
-    return logger
+    # Reconfigure stderr/stdout to UTF-8 if possible (py3.7+)
+    for stream in (sys.stderr, sys.stdout):
+        try:
+            stream.reconfigure(encoding="utf-8")
+        except Exception:
+            pass
 
+    # Build handlers explicitly with UTF-8-safe streams
+    stream_handler = logging.StreamHandler(sys.stderr)
+    stream_handler.setFormatter(logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s"))
+
+    # Force reset any previous basicConfig/handlers
+    logging.basicConfig(level=logging.INFO, handlers=[stream_handler], force=True)
+
+    logger = logging.getLogger("fin-make")
+    logger.setLevel(logging.INFO)
+    return logger

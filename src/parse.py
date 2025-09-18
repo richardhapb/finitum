@@ -1,21 +1,18 @@
 import json
 import re
 import typing
-import pytz
 import unicodedata
 from datetime import datetime
 from enum import Enum
 from sqlmodel import Session
-from contextlib import suppress
 
+from email_manager import Message
 import utils
 
 if typing.TYPE_CHECKING:
     from models import Expense as DBExpense, Transference as DBTransference
 
 logger = utils.get_logger()
-
-TZ = pytz.timezone("America/Santiago")
 
 
 class Currency(Enum):
@@ -50,9 +47,10 @@ class ExpenseCategory(Enum):
     BOOKS = "books"
     PURIFIED_WATER = "purified_water"
 
+
 cat_json = ""
 
-with open("categories.json", "r") as f:
+with open("categories.json", "r", encoding="utf-8") as f:
     cat_json = f.read()
 CATEGORY_KEYWORDS_RAW: dict[str, list[str]] = json.loads(cat_json)
 
@@ -137,7 +135,7 @@ class Transaction:
         try:
             self.value = float(amount_str.strip("$").replace(".", "").replace(",", "."))
         except ValueError:
-            logger.exception("Error parsing amount")
+            logger.exception("Error parsing amount: %r", amount_str)
             self.value = 0.0
 
     # Amount
@@ -154,13 +152,16 @@ class Transaction:
         Robust substring matching against any keyword in any category.
         Returns the first (longest keyword) match; falls back to GENERAL.
         """
-        norm_text = _normalize(text)
-        if not norm_text:
-            return ExpenseCategory.GENERAL
+        try:
+            norm_text = _normalize(text)
+            if not norm_text:
+                return ExpenseCategory.GENERAL
 
-        for nkw, cat in NORMALIZED_KEYWORDS:
-            if nkw and nkw in norm_text:
-                return cat
+            for nkw, cat in NORMALIZED_KEYWORDS:
+                if nkw and nkw in norm_text:
+                    return cat
+        except Exception as e:
+            logger.exception("Error matching category: %s", e)
 
         return ExpenseCategory.GENERAL
 
@@ -174,28 +175,25 @@ class Expense(Transaction):
 
     # REGEX
     COMPRA_GIRO = r"compra|giro en Cajero"
-    AMOUNT_REGEX = rf"(?:{COMPRA_GIRO}) por (\S+)"
-    COMMERCE_REGEX = r"compra por \S+ con \D+\d+ en (\D+) .* el"
-    DATE_REGEX = r"el\s*(\d{1,2}/\d{1,2}/\d{4}\s+\d{1,2}:\d{2})"
+    AMOUNT_REGEX = rf"(?:{COMPRA_GIRO})\s*por\s*(\S+)"
+    DATE_REGEX = r"\d{1,2}/\d{1,2}/\d{4}(?:\s+\d{1,2}:\d{2})?"
+    COMMERCE_REGEX = rf"compra\s+por\s+\S+\s*con\s*\D+\d+\s*en\s*(.+)\s*el\s*{DATE_REGEX}"
 
-    def __init__(self, amount_str: str, commerce_str: str, date_str: str):
+
+    def __init__(self, amount_str: str, commerce_str: str, date: datetime):
         self._parse_amount(amount_str)
         self.commerce = self._sanitize_commerce_str(commerce_str)
         self.category = self._get_category(self.commerce)
-
-        try:
-            dt = datetime.strptime(date_str, "%d/%m/%Y %H:%M")
-        except ValueError:
-            logger.exception("Error parsing date (got %r). Falling back to now().", date_str)
-            dt = datetime.now(TZ)
-        self.date = dt
+        self.date = date
 
     @classmethod
-    def get_expense(cls, content: str) -> "Expense":
-        amount_str = cls._get_amount_str(content)
-        commerce_str = cls._get_commerce_str(content)
-        date_str = cls._get_date_str(content)
-        return Expense(amount_str, commerce_str, date_str)
+    def get_expense(cls, msg: Message) -> "Expense":
+        amount_str = cls._get_amount_str(msg.body)
+        if "giro" in msg.subject.lower():
+            commerce_str = "GIRO EN CAJERO"
+        else:
+            commerce_str = cls._get_commerce_str(msg.body)
+        return Expense(amount_str, commerce_str, msg.date)
 
     # Commerce / Category
 
@@ -209,13 +207,6 @@ class Expense(Transaction):
     def _sanitize_commerce_str(commerce_str: str) -> str:
         # Clean and keep original casing for storage, but category matching uses normalized text
         return commerce_str.strip().strip("-").strip()
-
-    # Date
-
-    @classmethod
-    def _get_date_str(cls, content: str) -> str:
-        m = re.search(cls.DATE_REGEX, content, flags=re.IGNORECASE | re.DOTALL)
-        return m.group(1).strip() if m else ""
 
     def to_db_model(self) -> "DBExpense":
         """Convert to database model"""
@@ -234,24 +225,20 @@ class Expense(Transaction):
 class Transference(Transaction):
     recipient: str
 
-    AMOUNT_REGEX = r"Monto\s*(\S+)"
+    AMOUNT_REGEX = r"Monto\s*(\S+)\s*(?:Mensaje|ID)"
     RECIPIENT_REGEX = r"(?:Nombre y Apellido |Nombre )(.*) Rut"
 
-    def __init__(self, amount_str: str, recipient_str: str, date_str: str):
+    def __init__(self, amount_str: str, recipient_str: str, date: datetime):
         self._parse_amount(amount_str)
         self.recipient = recipient_str.strip()
         self.category = self._get_category(self.recipient)
-        try:
-            self.date = datetime.fromisoformat(date_str).astimezone(TZ)
-        except ValueError:
-            logger.exception("Error parsing date")
-            self.date = datetime.now()
+        self.date = date
 
     @classmethod
-    def get_transference(cls, content: str, date_str: str) -> "Transference":
-        amount_str = cls._get_amount_str(content)
-        commerce_str = cls._get_recipient_str(content)
-        return Transference(amount_str, commerce_str, date_str)
+    def get_transference(cls, msg: Message) -> "Transference":
+        amount_str = cls._get_amount_str(msg.body)
+        recipient_str = cls._get_recipient_str(msg.body)
+        return Transference(amount_str, recipient_str, msg.date)
 
     # Commerce / Category
 
@@ -275,9 +262,9 @@ class Transference(Transaction):
         )
 
 
-def save_extracted_expense(content: str, session: Session) -> "DBExpense":
+def save_extracted_expense(msg: Message, session: Session) -> "DBExpense":
     """Extract expense from text content and save to database"""
-    expense_parser = Expense.get_expense(content)
+    expense_parser = Expense.get_expense(msg)
     db_expense = expense_parser.to_db_model()
     session.add(db_expense)
     session.commit()
@@ -285,9 +272,9 @@ def save_extracted_expense(content: str, session: Session) -> "DBExpense":
     return db_expense
 
 
-def save_extracted_transference(content: str, date_str: str, session: Session) -> "DBTransference":
+def save_extracted_transference(msg: Message, session: Session) -> "DBTransference":
     """Extract transference from text content and save to database"""
-    transference_parser = Transference.get_transference(content, date_str)
+    transference_parser = Transference.get_transference(msg)
     db_transference = transference_parser.to_db_model()
     session.add(db_transference)
     session.commit()
