@@ -84,12 +84,12 @@
         "CONDOMINIO",
         "LUZ",
         "AGUA",
-        "WALDO",
         "RECAUDACION Y PAGOS DE SERVICIOS",
         "SODIMAC",
         "CASA IDEAS",
         "EASY",
-        "FERRETERIA"
+        "FERRETERIA",
+        "OTROSPAGOS"
     ],
     "External_food": [
         "EMPANADA",
