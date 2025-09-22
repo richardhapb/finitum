@@ -1,7 +1,8 @@
 import os
-import google.oauth2.credentials
+from typing import cast
+from google.oauth2.credentials import Credentials
 import google_auth_oauthlib.flow
-from models import User
+from models import User, UserGoogleCredentials, update_or_create_user
 
 
 # Retrieve client ID and secret
@@ -50,7 +51,7 @@ def authorize_oauth2() -> tuple[str, str]:
     )
 
 
-def get_credentials(state: str, authorization_url: str) -> tuple[dict[str, str], dict[str, str]]:
+def get_credentials(state: str, authorization_url: str, /, user: User | None = None) -> tuple[dict[str, str | None], dict[str, str]]:
     flow = google_auth_oauthlib.flow.Flow.from_client_config(CLIENT_CONFIG, scopes=SCOPES, state=state)
 
     # Use the authorization server's response to fetch the OAuth 2.0 tokens.
@@ -61,14 +62,17 @@ def get_credentials(state: str, authorization_url: str) -> tuple[dict[str, str],
     #              credentials in a persistent database instead.
     credentials = flow.credentials
 
-    credentials = credentials_to_dict(credentials)
+    credentials = credentials_to_dict(cast(Credentials, credentials))
     # Check which scopes user granted
     features = check_granted_scopes(credentials)
+
+    if user:
+        update_or_create_user(user)
 
     return credentials, features
 
 
-def credentials_to_dict(credentials):
+def credentials_to_dict(credentials: Credentials | UserGoogleCredentials) -> dict[str, str | None]:
     return {
         "token": credentials.token,
         "refresh_token": credentials.refresh_token,
@@ -76,9 +80,14 @@ def credentials_to_dict(credentials):
     }
 
 
-def check_granted_scopes(credentials):
+def check_granted_scopes(credentials: dict[str, str | None]):
     features = {}
-    features["email"] = "https://www.googleapis.com/auth/userinfo.email" in credentials["granted_scopes"]
-    features["gmail"] = "https://www.googleapis.com/auth/gmail.readonly" in credentials["granted_scopes"]
+    granted_scopes = credentials.get("granted_scopes")
+
+    if not granted_scopes:
+        return features
+
+    features["email"] = "https://www.googleapis.com/auth/userinfo.email" in granted_scopes
+    features["gmail"] = "https://www.googleapis.com/auth/gmail.readonly" in granted_scopes
 
     return features

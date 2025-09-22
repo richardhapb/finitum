@@ -1,15 +1,14 @@
-from collections.abc import Generator
 from datetime import datetime
+from google.oauth2.credentials import Credentials
 import pytz
 import email
-import os
+from googleapiclient.discovery import Resource, build
 from imaplib import IMAP4_SSL
 from typing import cast
-from dotenv import load_dotenv
-from contextlib import contextmanager
 from dataclasses import dataclass
-from models import User
+from database import get_session
 from utils import get_logger
+from models import User, UserGoogleCredentials, rebuild_credentials
 
 from bs4 import BeautifulSoup
 
@@ -102,55 +101,58 @@ class Message:
 
 
 class EmailManager:
-    def __init__(self, user: User):
+    def __init__(self, user: User, credentials: Credentials):
         self.conn: IMAP4_SSL = IMAP4_SSL("imap.gmail.com", 993)
-        self._logged: bool = False
         self.user: User = user
-        load_dotenv()
+        self.creds: Credentials = credentials
+        self.service: Resource = self.login()
 
-    @contextmanager
-    def login(self) -> Generator[None]:
-        if self._logged:
-            return
+    def search_messages(self, query: str) -> list[dict[str, int | str]]:
+        if not self.service:
+            self.login()
 
-        if not self.user.email or not self.user.password:
-            msg = f"User/Password missed, user: {self.user.email}"
-            raise AuthenticacionError(msg)
+        result = self.service.users().messages().list(userId='me',q=query).execute()
+        messages = []
 
-        try:
-            self.conn.login(self.user.email, self.user.password)
-        except IMAP4_SSL.error:
-            raise AuthenticacionError
+        if 'messages' in result:
+            messages.extend(result['messages'])
+        while 'nextPageToken' in result:
+            page_token = result['nextPageToken']
+            result = self.service.users().messages().list(userId='me',q=query, pageToken=page_token).execute()
+            if 'messages' in result:
+                messages.extend(result['messages'])
+        return messages
 
-        yield
+    def login(self) -> Resource:
+        return build("gmail", "v1", credentials=self.creds)
 
-        self.conn.logout()
+    def get_messages(self, query: str, date_from: datetime | None = None) -> list[Message]:
+        messages: list[Message] = []
 
-    def get_messages(self, date_from: datetime | None = None) -> list[Message]:
-        with self.login():
-            messages: list[Message] = []
+        msgs = self.search_messages(query)
 
-            self.conn.select("Transactions")
+        n: int = len(msgs)
 
-            _, data = self.conn.search(None, "UNSEEN")
-            msgs = data[0].split()
+        for i, msg in enumerate(msgs):
+            msg_bytest = self.service.users().messages().get(userId='me', id=msg['id'], format='full').execute()
+            logger.info("Processing message %d of %d", i + 1, n)
+            parsed = Message.parse_message(cast(bytes, msg_bytest), date_from)
+            if parsed:
+                messages.append(parsed)
 
-            n: int = len(msgs)
-
-            for i, num in enumerate(msgs):
-                _, dat = self.conn.fetch(num, "(RFC822)")
-                if dat and dat[0]:
-                    logger.info("Processing message %d of %d", i + 1, n)
-                    parsed = Message.parse_message(cast(bytes, dat[0][1]), date_from)
-                    if parsed:
-                        messages.append(parsed)
-
-            return messages
+        return messages
 
 
 def _ensure_str(s: bytes | bytearray | str) -> str:
     return bytes(s).decode("utf-8", errors="replace") if isinstance(s, (bytes, bytearray)) else s
 
 if __name__ == "__main__":
-    em: EmailManager = EmailManager()
-    em.get_messages()
+    with next(get_session()) as session:
+        user = session.get(User, {"username": "richardhapb"})
+        credentials_obj = session.get(UserGoogleCredentials, {"user": user}) if user else None
+        if user and credentials_obj:
+            credentials = rebuild_credentials(credentials_obj)
+            em: EmailManager = EmailManager(user, credentials)
+            em.get_messages("is:unread")
+        else:
+            logger.error("Missed user/credentials, user=%s, credentials=%s", user, credentials_obj)

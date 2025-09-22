@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from database import create_db_and_tables, get_session
 from sqlmodel import Session, select
-from models import Expense as DBExpense, User
+from models import Expense as DBExpense, User, UserGoogleCredentials
 from fastapi.responses import RedirectResponse
 from oauth import google_oauth
 
@@ -29,7 +29,7 @@ async def lifespan(app_service: FastAPI):
 
 
 app = FastAPI(
-    title="Finance manager",
+    title="Finitum - Finance manager",
     description="Handle the expenses and manage finance elements",
     version="1.0.0",
     lifespan=lifespan,
@@ -51,7 +51,9 @@ async def health() -> JSONResponse:
 
 @app.get("/expenses")
 def get_expenses(request: Request, session: Session = Depends(get_session)) -> JSONResponse | RedirectResponse:
-    if "credentials" not in request.session:
+    credentials = try_get_credentials(request, session)
+    if not credentials:
+        logger.info("Credentials not found in session, requesting authorization")
         return RedirectResponse("/google-authorize")
 
     expenses = session.exec(select(DBExpense)).all()
@@ -75,15 +77,36 @@ def google_callback(request: Request, _code: str, state: str):
     authorization_url = str(request.url)
     credentials, features = google_oauth.get_credentials(state, authorization_url)
 
-    # In FastAPI, you need to manage session differently than Flask
     request.session["credentials"] = credentials
     request.session["features"] = features
     return RedirectResponse("/expenses")
 
 
-def is_token_valid(token: str) -> bool:
-    return token.strip("Bearer").strip() == os.getenv("JWT")
+def try_get_credentials(request: Request, session: Session) -> dict[str, str | None] | None:
+    if "credentials" in request.session:
+        return request.session["credentials"]
 
+    # Try to get from database
+    user = try_get_user(request, session)
+    if not user:
+        return None
 
-def clean_body(body: bytes) -> bytes:
-    return body.replace(b"\n", b"")
+    credentials = session.get(UserGoogleCredentials, {"user": user})
+    if credentials:
+        credentials_dict = google_oauth.credentials_to_dict(credentials)
+        request.session["credentials"] = credentials_dict
+
+        return credentials_dict
+
+    return None
+
+def try_get_user(request: Request, session: Session) -> User | None:
+    if "user_id" not in request.session:
+        return None
+
+    try:
+        user_id = int(request.session.get("user_id", "-"))
+    except ValueError:
+        return None
+
+    return session.get(User, user_id)
