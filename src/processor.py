@@ -4,6 +4,7 @@ from database import create_db_and_tables, get_session
 from utils import get_logger
 from email_manager import EmailManager
 from parse import save_extracted_expense, save_extracted_transference
+from models import minimum_date_factory
 
 logger = get_logger()
 
@@ -29,4 +30,4 @@ def process_new_messages(session: Session, date_form: datetime | None = None):
 if __name__ == "__main__":
     with next(get_session()) as session:
         create_db_and_tables()
-        process_new_messages(session, datetime(year=2025, month=1, day=1))
+        process_new_messages(session, minimum_date_factory())

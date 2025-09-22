@@ -6,7 +6,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from database import create_db_and_tables, get_session
 from sqlmodel import Session, select
-from models import Expense as DBExpense
+from models import Expense as DBExpense, User
+from fastapi.responses import RedirectResponse
+from oauth import google_oauth
 
 import utils
 
@@ -48,15 +50,35 @@ async def health() -> JSONResponse:
 
 
 @app.get("/expenses")
-def get_expenses(request: Request, session: Session = Depends(get_session)) -> JSONResponse:
-    headers = request.headers
-    token = headers.get("Authorization", "")
-
-    if not is_token_valid(token):
-        return JSONResponse(status_code=403, content={"message": "Unauthorized"})
+def get_expenses(request: Request, session: Session = Depends(get_session)) -> JSONResponse | RedirectResponse:
+    if "credentials" not in request.session:
+        return RedirectResponse("/google-authorize")
 
     expenses = session.exec(select(DBExpense)).all()
     return JSONResponse(status_code=200, content={"expenses": list(expenses)})
+
+
+@app.get("/google-authorize")
+def auth_google(request: Request):
+    auth_url, state = google_oauth.authorize_oauth2()
+    request.session["state"] = state
+    return RedirectResponse(auth_url)
+
+
+@app.get("/google_oauth2callback")
+def google_callback(request: Request, _code: str, state: str):
+    stored_state = request.session.get("state", "")
+    if state != stored_state:
+        return JSONResponse(status_code=400, content={"error": "State mismatch"})
+
+    # Construct the full authorization URL that Google redirected to
+    authorization_url = str(request.url)
+    credentials, features = google_oauth.get_credentials(state, authorization_url)
+
+    # In FastAPI, you need to manage session differently than Flask
+    request.session["credentials"] = credentials
+    request.session["features"] = features
+    return RedirectResponse("/expenses")
 
 
 def is_token_valid(token: str) -> bool:

@@ -2,6 +2,7 @@
 docker-compose.yml
 __pycache__
 
+todo.md
 .git
 .pytest_cache
 .venv

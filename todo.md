@@ -1,0 +1,4 @@
+- [ ] Migrate models
+- [ ] Use OAuth one time and store credentials in database
+- [ ] Modularize OAuth server
+- [ ] Test OAuth flow

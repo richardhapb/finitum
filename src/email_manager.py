@@ -8,6 +8,7 @@ from typing import cast
 from dotenv import load_dotenv
 from contextlib import contextmanager
 from dataclasses import dataclass
+from models import User
 from utils import get_logger
 
 from bs4 import BeautifulSoup
@@ -101,9 +102,10 @@ class Message:
 
 
 class EmailManager:
-    def __init__(self):
+    def __init__(self, user: User):
         self.conn: IMAP4_SSL = IMAP4_SSL("imap.gmail.com", 993)
         self._logged: bool = False
+        self.user: User = user
         load_dotenv()
 
     @contextmanager
@@ -111,15 +113,12 @@ class EmailManager:
         if self._logged:
             return
 
-        user: str = os.getenv("GMAIL_USER", "")
-        password: str = os.getenv("GMAIL_PASS", "")
-
-        if not user or not password:
-            msg = f"User/Password missed, user: {user}, password: {password}"
+        if not self.user.email or not self.user.password:
+            msg = f"User/Password missed, user: {self.user.email}"
             raise AuthenticacionError(msg)
 
         try:
-            self.conn.login(user, password)
+            self.conn.login(self.user.email, self.user.password)
         except IMAP4_SSL.error:
             raise AuthenticacionError
 
