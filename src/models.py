@@ -1,12 +1,12 @@
 from datetime import datetime
-from typing import Optional
+from typing import Any, ClassVar, Optional
 
 from google.oauth2.credentials import Credentials
 from database import get_session
 from utils import get_logger
 
-from pydantic import EmailStr
-from sqlmodel import Field, ForeignKey, SQLModel, select
+from pydantic import EmailStr, field_validator
+from sqlmodel import Field, Relationship, SQLModel, select
 from parse import Currency, ExpenseCategory
 
 from passlib.context import CryptContext
@@ -20,11 +20,12 @@ def minimum_date_factory() -> datetime:
 
 
 class User(SQLModel, table=True):
-    id: int = Field(primary_key=True)
+    id: Optional[int] = Field(default=None, primary_key=True)
     username: str = Field(unique=True, index=True)
-    password: str = Field()
+    password: Optional[str] = Field(default=None)
     email: EmailStr = Field(unique=True, index=True)
     last_update: datetime = Field(default_factory=minimum_date_factory)
+    google_credentials: Optional["UserGoogleCredentials"] = Relationship(back_populates="user")
 
     def set_password(self, password: str):
         self.password = pwd_context.hash(password)
@@ -32,10 +33,17 @@ class User(SQLModel, table=True):
     def verify_password(self, password: str) -> bool:
         return pwd_context.verify(password, self.password)
 
+    @classmethod
+    def create(cls, username: str, email: str, password: str) -> "User":
+        user = cls(username=username, email=email)
+        user.set_password(password)
+        return user
+
 
 class UserGoogleCredentials(SQLModel, table=True):
-    id: int = Field(primary_key=True)
-    user: ForeignKey[User] = ForeignKey("User")
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(foreign_key="user.id")
+    user: Optional[User] = Relationship(back_populates="google_credentials")
     token: str = Field(max_length=255)
     refresh_token: str = Field(max_length=255)
     granted_scopes: str = Field()
@@ -64,6 +72,27 @@ class Transference(SQLModel, table=True):
     description: Optional[str] = Field(default=None)
 
 
+class UserCreate(SQLModel):
+    username: str
+    email: EmailStr
+    password: str
+
+    @field_validator("password")
+    def password_strength(cls, v):
+        if len(v) < 8:
+            raise ValueError("Password must be at least 8 characters")
+        return v
+
+
+class UserResponse(SQLModel):
+    id: int
+    username: str
+    email: EmailStr
+    last_update: datetime
+
+    model_config: ClassVar[dict[str, Any]] = {"orm_mode": True}  # type: ignore[assignment]
+
+
 class UpdateError(Exception):
     def __init__(self, *args: object) -> None:
         super().__init__(*args)
@@ -71,19 +100,20 @@ class UpdateError(Exception):
 
 def update_or_create_user(user_data: User) -> None:
     with next(get_session()) as session:
-        # Check if hero with this email already exists
+        # Check if user exists
         statement = select(User).where(User.email == user_data.email)
-        existing_hero = session.exec(statement).first()
+        existing_user = session.exec(statement).first()
 
-        for key, val in user_data:
-            setattr(existing_hero, key, val)
-
-        if existing_hero:
-            logger.info("Updated hero: %s", user_data.email)
-            session.refresh(existing_hero)
+        if existing_user:
+            # Update existing user
+            for key, val in user_data.__dict__.items():
+                if key != "_sa_instance_state" and hasattr(existing_user, key):
+                    setattr(existing_user, key, val)
+            logger.info("Updated user: %s", user_data.email)
         else:
+            # Create new user
             session.add(user_data)
-            logger.info("Created hero: %s", user_data.email)
+            logger.info("Created user: %s", user_data.email)
 
         session.commit()
 

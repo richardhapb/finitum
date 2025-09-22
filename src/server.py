@@ -1,12 +1,13 @@
 import dotenv
 import os
-from fastapi import FastAPI, Request, Depends
+from fastapi import FastAPI, Request, Depends, status
+from fastapi.exceptions import HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from database import create_db_and_tables, get_session
-from sqlmodel import Session, select
-from models import Expense as DBExpense, User, UserGoogleCredentials
+from sqlmodel import Session, or_, select
+from models import Expense as DBExpense, User, UserCreate, UserGoogleCredentials, UserResponse
 from fastapi.responses import RedirectResponse
 from oauth import google_oauth
 
@@ -47,6 +48,42 @@ app.add_middleware(
 @app.get("/health", response_class=JSONResponse)
 async def health() -> JSONResponse:
     return JSONResponse(status_code=200, content={"message": "OK"})
+
+
+@app.post("/signup", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+def signup(user_data: UserCreate, session: Session = Depends(get_session)):
+    """
+    Register a new user in the system.
+
+    Args:
+        user_data: User registration data containing username, email and password
+        session: Database session
+
+    Returns:
+        The newly created user object (password excluded)
+
+    Raises:
+        HTTPException: If email/username already exists
+    """
+    # Check if user already exists
+    existing_user = session.exec(
+        select(User).where(or_(User.email == user_data.email, User.username == user_data.username))
+    ).first()
+
+    if existing_user:
+        field = "email" if existing_user.email == user_data.email else "username"
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"User with this {field} already exists")
+
+    # Create new user object
+    new_user = User(username=user_data.username, email=user_data.email)
+    new_user.set_password(user_data.password)
+
+    # Save to database
+    session.add(new_user)
+    session.commit()
+    session.refresh(new_user)
+
+    return new_user
 
 
 @app.get("/expenses")
@@ -99,6 +136,7 @@ def try_get_credentials(request: Request, session: Session) -> dict[str, str | N
         return credentials_dict
 
     return None
+
 
 def try_get_user(request: Request, session: Session) -> User | None:
     if "user_id" not in request.session:
