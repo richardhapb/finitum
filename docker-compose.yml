@@ -1,0 +1,82 @@
+name: finitum
+
+services:
+    api:
+        build: .
+        image: finitum-api:latest
+        command: granian --interface asgi --workers ${API_WORKERS:-2} --port 9090 server:app --access-log --reload
+        env_file: .env
+        ports: ["9090:9090"]
+        volumes: ["./src:/app/src"]
+        depends_on:
+            db: { condition: service_healthy }
+            redis: { condition: service_healthy }
+        healthcheck:
+            test: ["CMD", "curl", "-f", "http://localhost:9090/health"]
+            interval: 20s
+            timeout: 3s
+            retries: 5
+        restart: unless-stopped
+
+    worker:
+        image: finitum-api:latest
+        command: celery -A celery_service.app:celery worker --loglevel=INFO --concurrency=${CELERY_CONCURRENCY:-2}
+        env_file: .env
+        depends_on:
+            db: { condition: service_healthy }
+            redis: { condition: service_healthy }
+        restart: unless-stopped
+    beat:
+        image: finitum-api:latest
+        working_dir: /app
+        command: >
+            celery -A celery_service.app:celery beat
+            -l INFO
+            --schedule /data/celerybeat-schedule
+        env_file: .env
+        depends_on:
+            redis: { condition: service_healthy }
+
+        volumes: ["beat-data:/data"]
+        restart: unless-stopped
+
+    alembic:
+        image: finitum-api:latest
+        command: alembic -c /app/pyproject.toml upgrade head
+        env_file: .env
+        volumes: ["./alembic:/app/alembic"]
+        depends_on:
+            db: { condition: service_healthy }
+        restart: "no"
+
+    db:
+        image: postgres:17.6
+        environment:
+            POSTGRES_USER: ${PGUSER}
+            POSTGRES_PASSWORD: ${PGPASSWORD}
+            POSTGRES_DB: ${PGDATABASE}
+        volumes: ["pgdata:/var/lib/postgresql/data"]
+        healthcheck:
+            test:
+                ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+            interval: 10s
+            timeout: 3s
+            retries: 10
+        restart: unless-stopped
+        ports: ["5444:5432"]
+
+    redis:
+        image: redis:8.2.1-alpine
+        command: redis-server --appendonly yes
+        volumes: ["redisdata:/data"]
+        healthcheck:
+            test: ["CMD", "redis-cli", "ping"]
+            interval: 10s
+            timeout: 3s
+            retries: 10
+        restart: unless-stopped
+
+volumes:
+    pgdata:
+    redisdata:
+    beat-data:

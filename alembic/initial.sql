@@ -2,8 +2,6 @@
 -- PostgreSQL database dump
 --
 
-\restrict uBMzyAHOZG4CbzIhFLGVvjOa9YuGxdZIjKyNGfDzr5EqjlvekCXrT4AQ702CRuV
-
 -- Dumped from database version 17.6 (Debian 17.6-1.pgdg13+1)
 -- Dumped by pg_dump version 17.6 (Debian 17.6-1.pgdg13+1)
 
@@ -63,14 +61,6 @@ CREATE TYPE public.expensecategory AS ENUM (
 SET default_tablespace = '';
 
 SET default_table_access_method = heap;
-
---
--- Name: alembic_version; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.alembic_version (
-    version_num character varying(32) NOT NULL
-);
 
 
 --
@@ -158,14 +148,6 @@ ALTER TABLE ONLY public.transference ALTER COLUMN id SET DEFAULT nextval('public
 
 
 --
--- Name: alembic_version alembic_version_pkc; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.alembic_version
-    ADD CONSTRAINT alembic_version_pkc PRIMARY KEY (version_num);
-
-
---
 -- Name: expense expense_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -198,6 +180,4 @@ CREATE INDEX ix_transference_recipient ON public.transference USING btree (recip
 --
 -- PostgreSQL database dump complete
 --
-
-\unrestrict uBMzyAHOZG4CbzIhFLGVvjOa9YuGxdZIjKyNGfDzr5EqjlvekCXrT4AQ702CRuV
 

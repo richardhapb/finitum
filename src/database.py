@@ -76,7 +76,7 @@ def _build_engine(conn_str: str):
 
 CONN_STR = os.environ.get("CONN_STR", "")
 if not CONN_STR:
-    raise RuntimeError("Set CONN_STR env var, e.g. postgresql+psycopg://user:pass@localhost/fintrack")
+    raise RuntimeError("Set CONN_STR env var, e.g. postgresql+psycopg://user:pass@localhost/finitum")
 
 # Ensure DB exists and is UTF-8
 _ensure_db_utf8(CONN_STR, db_locale=os.environ.get("DB_LOCALE", "en_US.UTF-8"))

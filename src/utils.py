@@ -18,6 +18,6 @@ def get_logger() -> logging.Logger:
     # Force reset any previous basicConfig/handlers
     logging.basicConfig(level=logging.INFO, handlers=[stream_handler], force=True)
 
-    logger = logging.getLogger("fintrack")
+    logger = logging.getLogger("finitum")
     logger.setLevel(logging.INFO)
     return logger
