@@ -2,12 +2,11 @@ from datetime import datetime
 from typing import Any, ClassVar, Optional
 
 from google.oauth2.credentials import Credentials
-from database import get_session
-from utils import get_logger
+from utils.logger import get_logger
 
 from pydantic import EmailStr, field_validator
 from sqlmodel import Field, Relationship, SQLModel, select
-from parse import Currency, ExpenseCategory
+from parsers.base import Currency, ExpenseCategory
 
 from passlib.context import CryptContext
 
@@ -90,7 +89,7 @@ class UserResponse(SQLModel):
     email: EmailStr
     last_update: datetime
 
-    model_config: ClassVar[dict[str, Any]] = {"orm_mode": True}  # type: ignore[assignment]
+    model_config: ClassVar[dict[str, Any]] = {"from_attributes": True}  # type: ignore[assignment]
 
 
 class UpdateError(Exception):
@@ -99,6 +98,8 @@ class UpdateError(Exception):
 
 
 def update_or_create_user(user_data: User) -> None:
+    from db.service import get_session
+
     with next(get_session()) as session:
         # Check if user exists
         statement = select(User).where(User.email == user_data.email)
@@ -119,7 +120,7 @@ def update_or_create_user(user_data: User) -> None:
 
 
 def rebuild_credentials(credentials: dict[str, str | None] | UserGoogleCredentials) -> Credentials:
-    from oauth.google_oauth import CLIENT_CONFIG
+    from oauth_service.google_oauth import CLIENT_CONFIG
 
     client_config = CLIENT_CONFIG["web"]
     return Credentials(

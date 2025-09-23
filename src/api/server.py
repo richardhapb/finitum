@@ -1,19 +1,20 @@
 import dotenv
 import os
+from typing import Any
 from fastapi import FastAPI, Request, Depends, status
 from fastapi.exceptions import HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
-from database import create_db_and_tables, get_session
+from db.service import create_db_and_tables, get_session
 from sqlmodel import Session, or_, select
-from models import Expense as DBExpense, User, UserCreate, UserGoogleCredentials, UserResponse
+from db.models import Expense as DBExpense, User, UserCreate, UserGoogleCredentials, UserResponse
 from fastapi.responses import RedirectResponse
-from oauth import google_oauth
+from oauth_service import google_oauth
 
-import utils
+from utils.logger import get_logger
 
-logger = utils.get_logger()
+logger = get_logger()
 
 
 @asynccontextmanager
@@ -51,7 +52,7 @@ async def health() -> JSONResponse:
 
 
 @app.post("/signup", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
-def signup(user_data: UserCreate, session: Session = Depends(get_session)):
+def signup(user_data: UserCreate, session: Session = Depends(get_session)) -> Any:
     """
     Register a new user in the system.
 

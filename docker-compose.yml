@@ -4,7 +4,7 @@ services:
     api:
         build: .
         image: finitum-api:latest
-        command: granian --interface asgi --workers ${API_WORKERS:-2} --host 0.0.0.0 --port 9090 server:app --access-log --reload
+        command: granian --interface asgi --workers ${API_WORKERS:-2} --host 0.0.0.0 --port 9090 api.server:app --access-log --reload
         env_file: .env
         ports: ["9090:9090"]
         volumes: ["./src:/app/src"]
@@ -20,7 +20,7 @@ services:
 
     worker:
         image: finitum-api:latest
-        command: celery -A celery_service.app:celery worker --loglevel=INFO --concurrency=${CELERY_CONCURRENCY:-2}
+        command: celery -A tasks.app:celery worker --loglevel=INFO --concurrency=${CELERY_CONCURRENCY:-2}
         env_file: .env
         depends_on:
             db: { condition: service_healthy }
@@ -30,7 +30,7 @@ services:
         image: finitum-api:latest
         working_dir: /app
         command: >
-            celery -A celery_service.app:celery beat
+            celery -A tasks.app:celery beat
             -l INFO
             --schedule /data/celerybeat-schedule
         env_file: .env

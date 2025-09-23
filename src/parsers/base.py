@@ -1,18 +1,12 @@
 import json
 import re
-import typing
 import unicodedata
 from datetime import datetime
 from enum import Enum
-from sqlmodel import Session
 
-from email_manager import Message
-import utils
+from utils.logger import get_logger
 
-if typing.TYPE_CHECKING:
-    from models import Expense as DBExpense, Transference as DBTransference
-
-logger = utils.get_logger()
+logger = get_logger()
 
 
 class Currency(Enum):
@@ -168,115 +162,3 @@ class Transaction:
     @staticmethod
     def _get_category(commerce_or_recipient_str: str) -> ExpenseCategory:
         return Transaction._match_category_by_text(commerce_or_recipient_str)
-
-
-class Expense(Transaction):
-    commerce: str
-
-    # REGEX
-    COMPRA_GIRO = r"compra|giro en Cajero"
-    AMOUNT_REGEX = rf"(?:{COMPRA_GIRO})\s*por\s*(\S+)"
-    DATE_REGEX = r"\d{1,2}/\d{1,2}/\d{4}(?:\s+\d{1,2}:\d{2})?"
-    COMMERCE_REGEX = rf"compra\s+por\s+\S+\s*con\s*\D+\d+\s*en\s*(.+)\s*el\s*{DATE_REGEX}"
-
-
-    def __init__(self, amount_str: str, commerce_str: str, date: datetime):
-        self._parse_amount(amount_str)
-        self.commerce = self._sanitize_commerce_str(commerce_str)
-        self.category = self._get_category(self.commerce)
-        self.date = date
-
-    @classmethod
-    def get_expense(cls, msg: Message) -> "Expense":
-        amount_str = cls._get_amount_str(msg.body)
-        if "giro" in msg.subject.lower():
-            commerce_str = "GIRO EN CAJERO"
-        else:
-            commerce_str = cls._get_commerce_str(msg.body)
-        return Expense(amount_str, commerce_str, msg.date)
-
-    # Commerce / Category
-
-    @classmethod
-    def _get_commerce_str(cls, content: str) -> str:
-        commerces = re.findall(cls.COMMERCE_REGEX, content)
-        commerce = commerces[0] if commerces else ""
-        return commerce
-
-    @staticmethod
-    def _sanitize_commerce_str(commerce_str: str) -> str:
-        # Clean and keep original casing for storage, but category matching uses normalized text
-        return commerce_str.strip().strip("-").strip()
-
-    def to_db_model(self) -> "DBExpense":
-        """Convert to database model"""
-        from models import Expense as DBExpense
-
-        return DBExpense(
-            commerce=self.commerce,
-            amount=self.value,
-            currency=self.currency,
-            category=self.category,
-            date=self.date,
-            description="Extracted from email",
-        )
-
-
-class Transference(Transaction):
-    recipient: str
-
-    AMOUNT_REGEX = r"Monto\s*(\S+)\s*(?:Mensaje|ID)"
-    RECIPIENT_REGEX = r"(?:Nombre y Apellido |Nombre )(.*) Rut"
-
-    def __init__(self, amount_str: str, recipient_str: str, date: datetime):
-        self._parse_amount(amount_str)
-        self.recipient = recipient_str.strip()
-        self.category = self._get_category(self.recipient)
-        self.date = date
-
-    @classmethod
-    def get_transference(cls, msg: Message) -> "Transference":
-        amount_str = cls._get_amount_str(msg.body)
-        recipient_str = cls._get_recipient_str(msg.body)
-        return Transference(amount_str, recipient_str, msg.date)
-
-    # Commerce / Category
-
-    @classmethod
-    def _get_recipient_str(cls, content: str) -> str:
-        recipients = re.findall(cls.RECIPIENT_REGEX, content)
-        recipient = recipients[0] if recipients else ""
-        return recipient
-
-    def to_db_model(self) -> "DBTransference":
-        """Convert to database model"""
-        from models import Transference as DBTransference
-
-        return DBTransference(
-            recipient=self.recipient,
-            amount=self.value,
-            currency=self.currency,
-            category=self.category,
-            date=self.date,
-            description="Extracted from email",
-        )
-
-
-def save_extracted_expense(msg: Message, session: Session) -> "DBExpense":
-    """Extract expense from text content and save to database"""
-    expense_parser = Expense.get_expense(msg)
-    db_expense = expense_parser.to_db_model()
-    session.add(db_expense)
-    session.commit()
-    session.refresh(db_expense)
-    return db_expense
-
-
-def save_extracted_transference(msg: Message, session: Session) -> "DBTransference":
-    """Extract transference from text content and save to database"""
-    transference_parser = Transference.get_transference(msg)
-    db_transference = transference_parser.to_db_model()
-    session.add(db_transference)
-    session.commit()
-    session.refresh(db_transference)
-    return db_transference

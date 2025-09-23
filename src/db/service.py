@@ -1,5 +1,4 @@
 import os
-from models import Expense, Transference  # noqa: F401
 from dotenv import load_dotenv
 from sqlalchemy import create_engine, event, text
 from sqlalchemy.engine import make_url

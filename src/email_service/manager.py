@@ -6,11 +6,13 @@ from googleapiclient.discovery import Resource, build
 from imaplib import IMAP4_SSL
 from typing import cast
 from dataclasses import dataclass
-from database import get_session
-from utils import get_logger
-from models import User, UserGoogleCredentials, rebuild_credentials
+from utils.logger import get_logger
 
 from bs4 import BeautifulSoup
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from models import User, UserGoogleCredentials, rebuild_credentials
 
 TZ = pytz.timezone("America/Santiago")
 logger = get_logger()
@@ -101,9 +103,9 @@ class Message:
 
 
 class EmailManager:
-    def __init__(self, user: User, credentials: Credentials):
+    def __init__(self, user: "User", credentials: Credentials):
         self.conn: IMAP4_SSL = IMAP4_SSL("imap.gmail.com", 993)
-        self.user: User = user
+        self.user: "User" = user
         self.creds: Credentials = credentials
         self.service: Resource = self.login()
 
@@ -147,6 +149,8 @@ def _ensure_str(s: bytes | bytearray | str) -> str:
     return bytes(s).decode("utf-8", errors="replace") if isinstance(s, (bytes, bytearray)) else s
 
 if __name__ == "__main__":
+    from models import User, UserGoogleCredentials, rebuild_credentials
+    from database import get_session
     with next(get_session()) as session:
         user = session.get(User, {"username": "richardhapb"})
         credentials_obj = session.get(UserGoogleCredentials, {"user": user}) if user else None

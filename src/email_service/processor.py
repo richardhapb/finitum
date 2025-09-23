@@ -1,11 +1,12 @@
 from datetime import datetime
 from google.oauth2.credentials import Credentials
 from sqlmodel import Session
-from database import get_session
-from utils import get_logger
-from email_manager import EmailManager
-from parse import save_extracted_expense, save_extracted_transference
-from models import User, UserGoogleCredentials, rebuild_credentials
+from db.service import get_session
+from utils.logger import get_logger
+from email_service.manager import EmailManager
+from parsers.expense import save_extracted_expense
+from parsers.transference import save_extracted_transference
+from db.models import User, UserGoogleCredentials, rebuild_credentials
 
 logger = get_logger()
 

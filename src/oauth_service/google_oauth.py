@@ -2,7 +2,7 @@ import os
 from typing import cast
 from google.oauth2.credentials import Credentials
 import google_auth_oauthlib.flow
-from models import User, UserGoogleCredentials, update_or_create_user
+from db.models import User, UserGoogleCredentials, update_or_create_user
 
 
 # Retrieve client ID and secret
