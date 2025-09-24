@@ -6,7 +6,7 @@ from fastapi.exceptions import HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
-from db.service import create_db_and_tables, get_session
+from db.service import  get_session
 from sqlmodel import Session, or_, select
 from db.models import Expense as DBExpense, User, UserCreate, UserGoogleCredentials, UserResponse
 from fastapi.responses import RedirectResponse
@@ -22,7 +22,6 @@ async def lifespan(app_service: FastAPI):
     """Application lifespan manager"""
     # Startup
     dotenv.load_dotenv()
-    create_db_and_tables()
     logger.info("Finance manager started")
     yield
 
@@ -88,14 +87,14 @@ def signup(user_data: UserCreate, session: Session = Depends(get_session)) -> An
 
 
 @app.get("/expenses")
-def get_expenses(request: Request, session: Session = Depends(get_session)) -> JSONResponse | RedirectResponse:
+def get_expenses(request: Request, session: Session = Depends(get_session)):
     credentials = try_get_credentials(request, session)
     if not credentials:
         logger.info("Credentials not found in session, requesting authorization")
         return RedirectResponse("/google-authorize")
 
     expenses = session.exec(select(DBExpense)).all()
-    return JSONResponse(status_code=200, content={"expenses": list(expenses)})
+    return JSONResponse(content={"expenses": [expense.model_dump() for expense in expenses]})
 
 
 @app.get("/google-authorize")

@@ -1,5 +1,4 @@
 import os
-import dotenv
 from logging.config import fileConfig
 
 
@@ -36,7 +35,6 @@ def run_migrations() -> None:
     and associate a connection with the context.
 
     """
-    dotenv.load_dotenv()
     conn_str = os.getenv("CONN_STR")
     if not conn_str:
         raise ConnectionError("CONN_STR doesn't found")
@@ -44,7 +42,7 @@ def run_migrations() -> None:
     engine = create_engine(conn_str)
 
     with engine.connect() as connection:
-        context.configure(connection=connection, target_metadata=target_metadata, version_table_schema="public")
+        context.configure(connection=connection, target_metadata=target_metadata)
 
         with context.begin_transaction():
             context.run_migrations()

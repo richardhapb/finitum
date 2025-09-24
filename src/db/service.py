@@ -84,10 +84,6 @@ _ensure_db_utf8(CONN_STR, db_locale=os.environ.get("DB_LOCALE", "en_US.UTF-8"))
 engine = _build_engine(CONN_STR)
 
 
-def create_db_and_tables() -> None:
-    SQLModel.metadata.create_all(engine)
-
-
 def get_session():
     with Session(engine) as session:
         yield session
