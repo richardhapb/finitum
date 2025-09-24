@@ -1,6 +1,6 @@
 from tasks.app import celery
 from email_service.processor import process_new_messages
-from db.models import User, UserGoogleCredentials, rebuild_credentials
+from db.models import User, UserGoogleCredential, rebuild_credentials
 from utils.logger import get_logger
 
 logger = get_logger()
@@ -21,7 +21,7 @@ def get_messages() -> None:
     from db.service import get_session
     with next(get_session()) as session:
         user = session.get(User, {"username": "richardhapb"})
-        credentials_obj = session.get(UserGoogleCredentials, {"user": user}) if user else None
+        credentials_obj = session.get(UserGoogleCredential, {"user": user}) if user else None
         if user and credentials_obj:
             credentials = rebuild_credentials(credentials_obj)
             process_new_messages(user, credentials, "is:unread", session, user.last_update)

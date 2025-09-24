@@ -2,7 +2,7 @@ import os
 from typing import cast
 from google.oauth2.credentials import Credentials
 import google_auth_oauthlib.flow
-from db.models import User, UserGoogleCredentials, update_or_create_user
+from db.models import User, UserGoogleCredential, update_or_create_user
 
 
 # Retrieve client ID and secret
@@ -72,7 +72,7 @@ def get_credentials(state: str, authorization_url: str, /, user: User | None = N
     return credentials, features
 
 
-def credentials_to_dict(credentials: Credentials | UserGoogleCredentials) -> dict[str, str | None]:
+def credentials_to_dict(credentials: Credentials | UserGoogleCredential) -> dict[str, str | None]:
     return {
         "token": credentials.token,
         "refresh_token": credentials.refresh_token,

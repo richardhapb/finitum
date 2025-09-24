@@ -1,10 +1,7 @@
 import os
-from dotenv import load_dotenv
 from sqlalchemy import create_engine, event, text
 from sqlalchemy.engine import make_url
-from sqlmodel import SQLModel, Session
-
-load_dotenv()
+from sqlmodel import Session
 
 # ---- Build engines ----------------------------------------------------------
 

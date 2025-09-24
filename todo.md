@@ -129,7 +129,6 @@ Create a centralized configuration system:
 ```python
 # src/core/config.py
 import os
-from dotenv import load_dotenv
 from pydantic import BaseSettings
 
 class Settings(BaseSettings):
@@ -144,7 +143,6 @@ class Settings(BaseSettings):
         env_file = ".env"
 
 # Load environment variables first
-load_dotenv()
 settings = Settings()
 ```
 

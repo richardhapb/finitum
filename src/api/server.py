@@ -1,18 +1,30 @@
-import dotenv
 import os
 from typing import Any
 from fastapi import FastAPI, Request, Depends, status
 from fastapi.exceptions import HTTPException
 from fastapi.responses import JSONResponse
-from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
-from db.service import  get_session
+
+from api.jwt import create_access_token, create_refresh_token, get_current_user
+
+from db.service import get_session
 from sqlmodel import Session, or_, select
-from db.models import Expense as DBExpense, User, UserCreate, UserGoogleCredentials, UserResponse
+from db.models import (
+    Expense as DBExpense,
+    User,
+    UserCreate,
+    UserGoogleCredential,
+    UserLoginResponse,
+    UserResponse,
+    UserLogin,
+)
 from fastapi.responses import RedirectResponse
 from oauth_service import google_oauth
+from starlette.middleware.cors import CORSMiddleware
+from starlette.middleware.sessions import SessionMiddleware
 
 from utils.logger import get_logger
+
 
 logger = get_logger()
 
@@ -21,7 +33,6 @@ logger = get_logger()
 async def lifespan(app_service: FastAPI):
     """Application lifespan manager"""
     # Startup
-    dotenv.load_dotenv()
     logger.info("Finance manager started")
     yield
 
@@ -42,6 +53,15 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["GET", "POST"],
     allow_headers=["*"],
+)
+
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=os.environ.get("SESSION_SECRET", "dev-insecure-change-me"),
+    session_cookie="session",
+    same_site="lax",  # or "none" if cross-site (requires HTTPS)
+    https_only=False,  # set True in prod behind HTTPS
+    max_age=60 * 60 * 24,  # 1 day
 )
 
 
@@ -86,8 +106,37 @@ def signup(user_data: UserCreate, session: Session = Depends(get_session)) -> An
     return new_user
 
 
+@app.post("/signin", response_model=UserLoginResponse, status_code=status.HTTP_200_OK)
+def signin(user_data: UserLogin, session: Session = Depends(get_session)) -> Any:
+    existing_user = session.exec(
+        select(User).where(or_(User.email == user_data.email, User.username == user_data.username))
+    ).first()
+
+    field = "email" if user_data.email else "username"
+    logger.info("Trying to login: %s", field)
+
+    if not existing_user:
+        msg = f"User with this {field} doesn't exist"
+        logger.error(msg)
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=msg)
+
+    if not existing_user.verify_password(user_data.password):
+        msg = "Incorrect password"
+        logger.error(msg)
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=msg)
+
+    data = {"sub": str(existing_user.username)}
+    access_token = create_access_token(data=data)
+    refresh_token = create_refresh_token(data=data)
+
+    logger.info("Logged in successfully")
+    return {"user": existing_user, "access_token": access_token, "refresh_token": refresh_token}
+
+
 @app.get("/expenses")
-def get_expenses(request: Request, session: Session = Depends(get_session)):
+def get_expenses(
+    request: Request, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)
+):
     credentials = try_get_credentials(request, session)
     if not credentials:
         logger.info("Credentials not found in session, requesting authorization")
@@ -128,7 +177,7 @@ def try_get_credentials(request: Request, session: Session) -> dict[str, str | N
     if not user:
         return None
 
-    credentials = session.get(UserGoogleCredentials, {"user": user})
+    credentials = session.get(UserGoogleCredential, {"user": user})
     if credentials:
         credentials_dict = google_oauth.credentials_to_dict(credentials)
         request.session["credentials"] = credentials_dict

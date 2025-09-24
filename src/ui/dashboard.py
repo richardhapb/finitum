@@ -3,12 +3,9 @@ from dash import Dash, html, dcc, callback, Output, Input
 import plotly.express as px
 import plotly.graph_objects as go
 import pandas as pd
-import dotenv
 import os
 from sqlalchemy import create_engine
 from datetime import datetime
-
-dotenv.load_dotenv()
 
 conn_str = os.getenv("CONN_STR")
 

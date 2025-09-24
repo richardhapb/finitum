@@ -6,7 +6,7 @@ from utils.logger import get_logger
 from email_service.manager import EmailManager
 from parsers.expense import save_extracted_expense
 from parsers.transference import save_extracted_transference
-from db.models import User, UserGoogleCredentials, rebuild_credentials
+from db.models import User, UserGoogleCredential, rebuild_credentials
 
 logger = get_logger()
 
@@ -38,7 +38,7 @@ def process_new_messages(
 if __name__ == "__main__":
     with next(get_session()) as session:
         user = session.get(User, {"username": "richardhapb"})
-        credentials_obj = session.get(UserGoogleCredentials, {"user": user}) if user else None
+        credentials_obj = session.get(UserGoogleCredential, {"user": user}) if user else None
         if user and credentials_obj:
             credentials = rebuild_credentials(credentials_obj)
             process_new_messages(user, credentials, "is:unread", session, user.last_update)

@@ -12,7 +12,7 @@ from bs4 import BeautifulSoup
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from models import User, UserGoogleCredentials, rebuild_credentials
+    from models import User, UserGoogleCredential, rebuild_credentials
 
 TZ = pytz.timezone("America/Santiago")
 logger = get_logger()
@@ -149,11 +149,11 @@ def _ensure_str(s: bytes | bytearray | str) -> str:
     return bytes(s).decode("utf-8", errors="replace") if isinstance(s, (bytes, bytearray)) else s
 
 if __name__ == "__main__":
-    from models import User, UserGoogleCredentials, rebuild_credentials
+    from models import User, UserGoogleCredential, rebuild_credentials
     from database import get_session
     with next(get_session()) as session:
         user = session.get(User, {"username": "richardhapb"})
-        credentials_obj = session.get(UserGoogleCredentials, {"user": user}) if user else None
+        credentials_obj = session.get(UserGoogleCredential, {"user": user}) if user else None
         if user and credentials_obj:
             credentials = rebuild_credentials(credentials_obj)
             em: EmailManager = EmailManager(user, credentials)

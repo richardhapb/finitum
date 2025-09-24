@@ -1,16 +1,18 @@
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, ClassVar, Optional
 
 from google.oauth2.credentials import Credentials
+from db.service import get_session
 from utils.logger import get_logger
 
 from pydantic import EmailStr, field_validator
-from sqlmodel import Field, Relationship, SQLModel, select
+from sqlmodel import Field, Relationship, SQLModel, select, or_
 from parsers.base import Currency, ExpenseCategory
 
-from passlib.context import CryptContext
+from pwdlib import PasswordHash
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+pwd_context = PasswordHash.recommended()
 logger = get_logger()
 
 
@@ -19,17 +21,20 @@ def minimum_date_factory() -> datetime:
 
 
 class User(SQLModel, table=True):
+    __tablename__ = "users"
     id: Optional[int] = Field(default=None, primary_key=True)
     username: str = Field(unique=True, index=True)
     password: Optional[str] = Field(default=None)
     email: EmailStr = Field(unique=True, index=True)
     last_update: datetime = Field(default_factory=minimum_date_factory)
-    google_credentials: Optional["UserGoogleCredentials"] = Relationship(back_populates="user")
+    google_credentials: Optional["UserGoogleCredential"] = Relationship(back_populates="user")
 
     def set_password(self, password: str):
         self.password = pwd_context.hash(password)
 
     def verify_password(self, password: str) -> bool:
+        if not self.password:
+            return False
         return pwd_context.verify(password, self.password)
 
     @classmethod
@@ -38,10 +43,16 @@ class User(SQLModel, table=True):
         user.set_password(password)
         return user
 
+    @classmethod
+    def get_user(cls, username: str) -> "User | None":
+        with next(get_session()) as session:
+            return session.exec(select(User).where(or_(User.email == username, User.username == username))).first()
 
-class UserGoogleCredentials(SQLModel, table=True):
+
+class UserGoogleCredential(SQLModel, table=True):
+    __tablename__ = "user_google_credentials"
     id: Optional[int] = Field(default=None, primary_key=True)
-    user_id: int = Field(foreign_key="user.id")
+    user_id: int = Field(foreign_key="users.id")
     user: Optional[User] = Relationship(back_populates="google_credentials")
     token: str = Field(max_length=255)
     refresh_token: str = Field(max_length=255)
@@ -52,7 +63,9 @@ class UserGoogleCredentials(SQLModel, table=True):
 
 
 class Expense(SQLModel, table=True):
+    __tablename__ = "expenses"
     id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(foreign_key="users.id")
     commerce: str = Field(index=True)
     amount: float = Field()
     currency: Currency = Field(default=Currency.CLP)
@@ -62,7 +75,9 @@ class Expense(SQLModel, table=True):
 
 
 class Transference(SQLModel, table=True):
+    __tablename__ = "transferences"
     id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(foreign_key="users.id")
     recipient: str = Field(index=True)
     amount: float = Field()
     currency: Currency = Field(default=Currency.CLP)
@@ -83,6 +98,19 @@ class UserCreate(SQLModel):
         return v
 
 
+class UserLogin(SQLModel):
+    username: Optional[str] = None
+    email: Optional[EmailStr] = None
+    password: str
+
+    @field_validator("username", "email")
+    def validate_user_identifier(cls, v, values):
+        # Ensure at least one identifier is provided
+        if not v and not values.get("email") and not values.get("username"):
+            raise ValueError("Either email or username must be provided")
+        return v
+
+
 class UserResponse(SQLModel):
     id: int
     username: str
@@ -90,6 +118,17 @@ class UserResponse(SQLModel):
     last_update: datetime
 
     model_config: ClassVar[dict[str, Any]] = {"from_attributes": True}  # type: ignore[assignment]
+
+@dataclass
+class Token(SQLModel):
+    token: str
+    exp: datetime
+
+class UserLoginResponse(SQLModel):
+    user: UserResponse
+    access_token: Token
+    refresh_token: Token
+
 
 
 class UpdateError(Exception):
@@ -119,7 +158,7 @@ def update_or_create_user(user_data: User) -> None:
         session.commit()
 
 
-def rebuild_credentials(credentials: dict[str, str | None] | UserGoogleCredentials) -> Credentials:
+def rebuild_credentials(credentials: dict[str, str | None] | UserGoogleCredential) -> Credentials:
     from oauth_service.google_oauth import CLIENT_CONFIG
 
     client_config = CLIENT_CONFIG["web"]
