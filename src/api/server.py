@@ -1,11 +1,11 @@
 import os
 from typing import Any
-from fastapi import FastAPI, Request, Depends, status
+from fastapi import FastAPI, Request, Depends, Response, status
 from fastapi.exceptions import HTTPException
 from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
 
-from api.jwt import create_access_token, create_refresh_token, get_current_user
+from api.jwt import Token, get_current_user
 
 from db.service import get_session
 from sqlmodel import Session, or_, select
@@ -24,6 +24,7 @@ from starlette.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
 from utils.logger import get_logger
+from utils.config import DEBUG
 
 
 logger = get_logger()
@@ -49,10 +50,10 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=os.getenv("ALLOWED_ORIGINS", "*").split(),
+    allow_origins=os.getenv("ALLOWED_ORIGINS", "http://0.0.0.0:9090 http://localhost:9090 http://127.0.0.1:9090").split(),
     allow_credentials=True,
-    allow_methods=["GET", "POST"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization"],
 )
 
 app.add_middleware(
@@ -60,7 +61,7 @@ app.add_middleware(
     secret_key=os.environ.get("SESSION_SECRET", "dev-insecure-change-me"),
     session_cookie="session",
     same_site="lax",  # or "none" if cross-site (requires HTTPS)
-    https_only=False,  # set True in prod behind HTTPS
+    https_only=not DEBUG,  # set True in prod behind HTTPS
     max_age=60 * 60 * 24,  # 1 day
 )
 
@@ -107,18 +108,18 @@ def signup(user_data: UserCreate, session: Session = Depends(get_session)) -> An
 
 
 @app.post("/signin", response_model=UserLoginResponse, status_code=status.HTTP_200_OK)
-def signin(user_data: UserLogin, session: Session = Depends(get_session)) -> Any:
+def signin(response: Response, user_data: UserLogin, session: Session = Depends(get_session)) -> Any:
     existing_user = session.exec(
         select(User).where(or_(User.email == user_data.email, User.username == user_data.username))
     ).first()
 
-    field = "email" if user_data.email else "username"
-    logger.info("Trying to login: %s", field)
-
     if not existing_user:
+        field = "email" if user_data.email else "username"
         msg = f"User with this {field} doesn't exist"
         logger.error(msg)
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=msg)
+
+    logger.debug("Trying to login: %s", existing_user.username)
 
     if not existing_user.verify_password(user_data.password):
         msg = "Incorrect password"
@@ -126,11 +127,28 @@ def signin(user_data: UserLogin, session: Session = Depends(get_session)) -> Any
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=msg)
 
     data = {"sub": str(existing_user.username)}
-    access_token = create_access_token(data=data)
-    refresh_token = create_refresh_token(data=data)
+    access_token = Token.create_access_token(data=data)
+    refresh_token = Token.create_refresh_token(data=data)
 
-    logger.info("Logged in successfully")
-    return {"user": existing_user, "access_token": access_token, "refresh_token": refresh_token}
+    logger.debug("Setting refresh_token cookie")
+    response.set_cookie(
+        key="refresh_token",
+        value=refresh_token.token,
+        httponly=True,
+        secure=not DEBUG,  # Only send over HTTPS
+        samesite="lax",  # Helps prevent CSRF attacks
+        expires=refresh_token.exp,
+    )
+
+    logger.debug("Logged in successfully")
+
+    response.status_code = status.HTTP_200_OK
+
+    return {
+        "user": existing_user,
+        "access_token": access_token.token,
+        "token_type": "bearer",
+    }
 
 
 @app.get("/expenses")

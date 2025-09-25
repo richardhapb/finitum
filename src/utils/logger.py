@@ -1,6 +1,6 @@
-# utils.py
 import logging
 import sys
+from utils.config import DEBUG
 
 
 def get_logger() -> logging.Logger:
@@ -19,5 +19,6 @@ def get_logger() -> logging.Logger:
     logging.basicConfig(level=logging.INFO, handlers=[stream_handler], force=True)
 
     logger = logging.getLogger("finitum")
-    logger.setLevel(logging.INFO)
+    level = logging.DEBUG if DEBUG else logging.INFO
+    logger.setLevel(level)
     return logger

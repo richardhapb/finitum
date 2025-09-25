@@ -1,4 +1,3 @@
-from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, ClassVar, Optional
 
@@ -119,15 +118,11 @@ class UserResponse(SQLModel):
 
     model_config: ClassVar[dict[str, Any]] = {"from_attributes": True}  # type: ignore[assignment]
 
-@dataclass
-class Token(SQLModel):
-    token: str
-    exp: datetime
 
 class UserLoginResponse(SQLModel):
     user: UserResponse
-    access_token: Token
-    refresh_token: Token
+    access_token: str
+    token_type: str
 
 
 
