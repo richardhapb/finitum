@@ -105,7 +105,6 @@ class Token:
 async def get_current_user(
     request: Request, token: str = Depends(bearer_scheme), session: Session = Depends(get_session)
 ) -> User:
-    print(token)
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -130,10 +129,12 @@ async def get_current_user(
 
     username: str | None = payload.get("sub")
     if username is None:
+        logger.debug("Username not found")
         raise credentials_exception
 
     user = session.exec(select(User).where(User.username == username)).first()
     if user is None:
+        logger.debug("User not found")
         raise credentials_exception
 
     return user

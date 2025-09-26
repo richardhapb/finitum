@@ -165,7 +165,6 @@ def signin(request: Request, response: Response, user_data: UserLogin, session: 
     )
 
     logger.debug("Logged in successfully")
-    request.session["user_id"] = str(existing_user.id)
     response.status_code = status.HTTP_200_OK
 
     response.status_code = status.HTTP_200_OK
@@ -221,15 +220,15 @@ def google_callback(
     return RedirectResponse("/expenses")
 
 
-def save_credentials(user: User, credentials: dict[str, str | None], session: Session) -> None:
+def save_credentials(user: User, credentials: dict[str, str | list[str] | None], session: Session) -> None:
     logger.debug("Saving credentials to user: %s", user)
 
     new_cred = UserGoogleCredential(
         user_id=user.id if user.id else 0,
         user=user,
-        granted_scopes=str(credentials["granted_scopes"]),
+        granted_scopes=",".join(list(credentials["granted_scopes"] if credentials["granted_scopes"] else [])),
         token=str(credentials["token"]),
-        refresh_token=str(["refresh_token"]),
+        refresh_token=str(credentials["refresh_token"]),
     )
 
     session.add(new_cred)

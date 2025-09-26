@@ -29,7 +29,7 @@ CLIENT_CONFIG = {
 }
 
 
-def authorize_oauth2(state: str) -> tuple[str, str]:
+def authorize_oauth2(state: str | None) -> tuple[str, str]:
     """Returns authorization_url and state"""
     if state is None:
         state = secrets.token_urlsafe(32)
@@ -58,7 +58,7 @@ def authorize_oauth2(state: str) -> tuple[str, str]:
     )
 
 
-def get_credentials(state: str, authorization_url: str, /, user: User | None = None) -> dict[str, str | None]:
+def get_credentials(state: str, authorization_url: str, /, user: User | None = None) -> dict[str, str | list[str] | None]:
     flow = google_auth_oauthlib.flow.Flow.from_client_config(CLIENT_CONFIG, scopes=SCOPES, state=state)
     flow.redirect_uri = REDIRECT_URI
 
@@ -78,7 +78,7 @@ def get_credentials(state: str, authorization_url: str, /, user: User | None = N
     return credentials
 
 
-def credentials_to_dict(credentials: Credentials | UserGoogleCredential) -> dict[str, str | None]:
+def credentials_to_dict(credentials: Credentials | UserGoogleCredential) -> dict[str, str | list[str] | None]:
     return {
         "token": credentials.token,
         "refresh_token": credentials.refresh_token,
