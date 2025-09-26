@@ -1,9 +1,7 @@
 from celery import Celery
 from kombu import Queue, Exchange
 import os
-
-REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-APP_NAME = "finitum"
+from utils.config import APP_NAME, REDIS_URL
 
 celery = Celery(
     APP_NAME,

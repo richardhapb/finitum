@@ -1,4 +1,5 @@
 import os
+import secrets
 from typing import cast
 from google.oauth2.credentials import Credentials
 import google_auth_oauthlib.flow
@@ -11,8 +12,9 @@ CLIENT_SECRET = os.environ.get("GOOGLE_SECRET")
 REDIRECT_URI = os.environ.get("GOOGLE_REDIRECT_URI", "http://localhost:9090/google_oauth2callback")
 
 SCOPES = [
-    "https://www.googleapis.com/auth/userinfo.email",
-    "https://www.googleapis.com/auth/gmail.readonly",
+    "https://www.googleapis.com/auth/userinfo.email",  # Access to user's email
+    "https://www.googleapis.com/auth/gmail.readonly",  # Read-only access to Gmail
+    "openid",  # Explicitly include OpenID scope if using OpenID Connect
 ]
 
 CLIENT_CONFIG = {
@@ -27,8 +29,10 @@ CLIENT_CONFIG = {
 }
 
 
-def authorize_oauth2() -> tuple[str, str]:
+def authorize_oauth2(state: str) -> tuple[str, str]:
     """Returns authorization_url and state"""
+    if state is None:
+        state = secrets.token_urlsafe(32)
     # Required, call the from_client_secrets_file method to retrieve the client ID from a
     # client_secret.json file. The client ID (from that file) and access scopes are required. (You can
     # also use the from_client_config method, which passes the client configuration as it originally
@@ -38,12 +42,15 @@ def authorize_oauth2() -> tuple[str, str]:
         scopes=SCOPES,
     )
 
+    flow.redirect_uri = REDIRECT_URI
+
     # Generate URL for request to Google's OAuth 2.0 server.
     # Use kwargs to set optional request parameters.
     return flow.authorization_url(
         # Recommended, enable offline access so that you can refresh an access token without
         # re-prompting the user for permission. Recommended for web server apps.
         access_type="offline",
+        state=state,
         # Optional, enable incremental authorization. Recommended as a best practice.
         include_granted_scopes="true",
         # Optional, set prompt to 'consent' will prompt the user for consent
@@ -51,8 +58,9 @@ def authorize_oauth2() -> tuple[str, str]:
     )
 
 
-def get_credentials(state: str, authorization_url: str, /, user: User | None = None) -> tuple[dict[str, str | None], dict[str, str]]:
+def get_credentials(state: str, authorization_url: str, /, user: User | None = None) -> dict[str, str | None]:
     flow = google_auth_oauthlib.flow.Flow.from_client_config(CLIENT_CONFIG, scopes=SCOPES, state=state)
+    flow.redirect_uri = REDIRECT_URI
 
     # Use the authorization server's response to fetch the OAuth 2.0 tokens.
     flow.fetch_token(authorization_response=authorization_url)
@@ -63,13 +71,11 @@ def get_credentials(state: str, authorization_url: str, /, user: User | None = N
     credentials = flow.credentials
 
     credentials = credentials_to_dict(cast(Credentials, credentials))
-    # Check which scopes user granted
-    features = check_granted_scopes(credentials)
 
     if user:
         update_or_create_user(user)
 
-    return credentials, features
+    return credentials
 
 
 def credentials_to_dict(credentials: Credentials | UserGoogleCredential) -> dict[str, str | None]:

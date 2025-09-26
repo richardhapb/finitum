@@ -1,31 +1,31 @@
 import os
-from typing import Any
-from fastapi import FastAPI, Request, Depends, Response, status
-from fastapi.exceptions import HTTPException
-from fastapi.responses import JSONResponse
+import secrets
 from contextlib import asynccontextmanager
+from typing import Any
+
+import redis
+from fastapi import Depends, FastAPI, Request, Response, status
+from fastapi.exceptions import HTTPException
+from fastapi.responses import JSONResponse, RedirectResponse
+from sqlmodel import Session, or_, select
+from starlette.middleware.cors import CORSMiddleware
 
 from api.jwt import Token, get_current_user
-
-from db.service import get_session
-from sqlmodel import Session, or_, select
 from db.models import (
     Expense as DBExpense,
+)
+from db.models import (
     User,
     UserCreate,
     UserGoogleCredential,
+    UserLogin,
     UserLoginResponse,
     UserResponse,
-    UserLogin,
 )
-from fastapi.responses import RedirectResponse
+from db.service import get_session
 from oauth_service import google_oauth
-from starlette.middleware.cors import CORSMiddleware
-from starlette.middleware.sessions import SessionMiddleware
-
+from utils.config import DEBUG, REDIS_HOST, REDIS_PORT, REFRESH_TOKEN_KEY
 from utils.logger import get_logger
-from utils.config import DEBUG
-
 
 logger = get_logger()
 
@@ -34,6 +34,7 @@ logger = get_logger()
 async def lifespan(app_service: FastAPI):
     """Application lifespan manager"""
     # Startup
+    os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1" if DEBUG else "0"
     logger.info("Finance manager started")
     yield
 
@@ -50,25 +51,48 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=os.getenv("ALLOWED_ORIGINS", "http://0.0.0.0:9090 http://localhost:9090 http://127.0.0.1:9090").split(),
+    allow_origins=os.getenv(
+        "ALLOWED_ORIGINS", "http://0.0.0.0:9090 http://localhost:9090 http://127.0.0.1:9090"
+    ).split(),
     allow_credentials=True,
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization"],
 )
 
-app.add_middleware(
-    SessionMiddleware,
-    secret_key=os.environ.get("SESSION_SECRET", "dev-insecure-change-me"),
-    session_cookie="session",
-    same_site="lax",  # or "none" if cross-site (requires HTTPS)
-    https_only=not DEBUG,  # set True in prod behind HTTPS
-    max_age=60 * 60 * 24,  # 1 day
-)
+
+redis_client = redis.Redis(host=REDIS_HOST, port=REDIS_PORT)
+
+
+# Functions for state management
+def generate_oauth_state() -> str:
+    """Generate a unique state token and store it in Redis with expiration."""
+    state = secrets.token_urlsafe(32)
+    # Store in Redis with 10 minute expiration
+    redis_client.setex(f"oauth_state:{state}", 600, "1")
+    return state
+
+
+def validate_oauth_state(state: str) -> bool:
+    """Validate a state token from Redis and delete it if valid."""
+    key = f"oauth_state:{state}"
+    valid = redis_client.exists(key)
+    if valid:
+        # Delete after use (one-time use)
+        redis_client.delete(key)
+    return bool(valid)
 
 
 @app.get("/health", response_class=JSONResponse)
 async def health() -> JSONResponse:
-    return JSONResponse(status_code=200, content={"message": "OK"})
+    redis_status = "OK" if redis_client.ping() else "FAILED"
+    return JSONResponse(status_code=200, content={"message": "OK", "redis": redis_status})
+
+
+@app.get("/debug/state")
+async def debug_session():
+    if not DEBUG:
+        raise HTTPException(status_code=404, detail="Not found")
+    return JSONResponse(content={"state": app.state.__dict__})
 
 
 @app.post("/signup", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
@@ -108,7 +132,7 @@ def signup(user_data: UserCreate, session: Session = Depends(get_session)) -> An
 
 
 @app.post("/signin", response_model=UserLoginResponse, status_code=status.HTTP_200_OK)
-def signin(response: Response, user_data: UserLogin, session: Session = Depends(get_session)) -> Any:
+def signin(request: Request, response: Response, user_data: UserLogin, session: Session = Depends(get_session)) -> Any:
     existing_user = session.exec(
         select(User).where(or_(User.email == user_data.email, User.username == user_data.username))
     ).first()
@@ -132,7 +156,7 @@ def signin(response: Response, user_data: UserLogin, session: Session = Depends(
 
     logger.debug("Setting refresh_token cookie")
     response.set_cookie(
-        key="refresh_token",
+        key=REFRESH_TOKEN_KEY,
         value=refresh_token.token,
         httponly=True,
         secure=not DEBUG,  # Only send over HTTPS
@@ -141,6 +165,8 @@ def signin(response: Response, user_data: UserLogin, session: Session = Depends(
     )
 
     logger.debug("Logged in successfully")
+    request.session["user_id"] = str(existing_user.id)
+    response.status_code = status.HTTP_200_OK
 
     response.status_code = status.HTTP_200_OK
 
@@ -155,63 +181,56 @@ def signin(response: Response, user_data: UserLogin, session: Session = Depends(
 def get_expenses(
     request: Request, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)
 ):
-    credentials = try_get_credentials(request, session)
-    if not credentials:
-        logger.info("Credentials not found in session, requesting authorization")
-        return RedirectResponse("/google-authorize")
-
     expenses = session.exec(select(DBExpense)).all()
     return JSONResponse(content={"expenses": [expense.model_dump() for expense in expenses]})
 
 
 @app.get("/google-authorize")
-def auth_google(request: Request):
-    auth_url, state = google_oauth.authorize_oauth2()
-    request.session["state"] = state
+def auth_google(
+    current_user: User = Depends(get_current_user),
+):
+    state = generate_oauth_state()
+    auth_url, _ = google_oauth.authorize_oauth2(state=state)
     return RedirectResponse(auth_url)
 
 
 @app.get("/google_oauth2callback")
-def google_callback(request: Request, _code: str, state: str):
-    stored_state = request.session.get("state", "")
-    if state != stored_state:
-        return JSONResponse(status_code=400, content={"error": "State mismatch"})
+def google_callback(
+    request: Request,
+    state: str,
+    error: str | None = None,
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
+    # Check for OAuth errors
+    if error:
+        logger.error(f"OAuth error: {error}")
+        return JSONResponse(status_code=400, content={"error": error})
 
-    # Construct the full authorization URL that Google redirected to
+    # Validate state using Redis
+    if not state or not validate_oauth_state(state):
+        logger.debug(f"Invalid state: {state}")
+        return JSONResponse(status_code=400, content={"error": "Invalid state parameter"})
+
+    # State is valid, continue with OAuth flow
     authorization_url = str(request.url)
-    credentials, features = google_oauth.get_credentials(state, authorization_url)
+    credentials = google_oauth.get_credentials(state, authorization_url)
 
-    request.session["credentials"] = credentials
-    request.session["features"] = features
+    save_credentials(current_user, credentials, session)
+
     return RedirectResponse("/expenses")
 
 
-def try_get_credentials(request: Request, session: Session) -> dict[str, str | None] | None:
-    if "credentials" in request.session:
-        return request.session["credentials"]
+def save_credentials(user: User, credentials: dict[str, str | None], session: Session) -> None:
+    logger.debug("Saving credentials to user: %s", user)
 
-    # Try to get from database
-    user = try_get_user(request, session)
-    if not user:
-        return None
+    new_cred = UserGoogleCredential(
+        user_id=user.id if user.id else 0,
+        user=user,
+        granted_scopes=str(credentials["granted_scopes"]),
+        token=str(credentials["token"]),
+        refresh_token=str(["refresh_token"]),
+    )
 
-    credentials = session.get(UserGoogleCredential, {"user": user})
-    if credentials:
-        credentials_dict = google_oauth.credentials_to_dict(credentials)
-        request.session["credentials"] = credentials_dict
-
-        return credentials_dict
-
-    return None
-
-
-def try_get_user(request: Request, session: Session) -> User | None:
-    if "user_id" not in request.session:
-        return None
-
-    try:
-        user_id = int(request.session.get("user_id", "-"))
-    except ValueError:
-        return None
-
-    return session.get(User, user_id)
+    session.add(new_cred)
+    session.commit()

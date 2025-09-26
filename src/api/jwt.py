@@ -6,6 +6,7 @@ from fastapi.exceptions import HTTPException
 from fastapi import Depends, Request, status
 import jwt
 from db.service import get_session
+from utils.config import REFRESH_TOKEN_KEY
 
 from db.models import User
 from sqlmodel import Session, select
@@ -117,7 +118,7 @@ async def get_current_user(
 
         logger.debug("Access token not valid, trying with refresh token")
 
-        refresh_token = request.cookies.get("refresh_token")
+        refresh_token = request.cookies.get(REFRESH_TOKEN_KEY)
         if not refresh_token:
             logger.debug("Refresh token not found")
             raise credentials_exception
