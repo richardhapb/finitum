@@ -1,12 +1,13 @@
 from datetime import datetime
-from typing import Any, ClassVar, Optional
+import json
+from typing import Any, ClassVar
 
 from google.oauth2.credentials import Credentials
 from db.service import get_session
 from utils.logger import get_logger
 
 from pydantic import EmailStr, field_validator
-from sqlmodel import Field, Relationship, SQLModel, select, or_
+from sqlmodel import Field, Relationship, SQLModel, select, or_, Text, Column
 from parsers.base import Currency, ExpenseCategory
 
 from pwdlib import PasswordHash
@@ -21,14 +22,14 @@ def minimum_date_factory() -> datetime:
 
 class User(SQLModel, table=True):
     __tablename__ = "users"
-    id: Optional[int] = Field(default=None, primary_key=True)
+    id: int | None = Field(default=None, primary_key=True)
     username: str = Field(unique=True, index=True)
-    password: Optional[str] = Field(default=None)
+    password: str | None = Field(default=None)
     email: EmailStr = Field(unique=True, index=True)
     last_update: datetime = Field(default_factory=minimum_date_factory)
-    google_credentials: Optional["UserGoogleCredential"] = Relationship(back_populates="user")
+    google_credentials: "UserGoogleCredential | None" = Relationship(back_populates="user")
 
-    def set_password(self, password: str):
+    def set_password(self, password: str) -> None:
         self.password = pwd_context.hash(password)
 
     def verify_password(self, password: str) -> bool:
@@ -50,39 +51,60 @@ class User(SQLModel, table=True):
 
 class UserGoogleCredential(SQLModel, table=True):
     __tablename__ = "user_google_credentials"
-    id: Optional[int] = Field(default=None, primary_key=True)
+    id: int | None = Field(default=None, primary_key=True)
     user_id: int = Field(foreign_key="users.id")
-    user: Optional[User] = Relationship(back_populates="google_credentials")
-    token: str = Field(max_length=255)
-    refresh_token: str = Field(max_length=255)
-    granted_scopes: str = Field()
+    user: "User | None" = Relationship(back_populates="google_credentials", sa_relationship_kwargs={"uselist": False})
 
-    def __getitem__(self, name: str):
-        return getattr(self, name)
+    token: str | None = Field(default=None, sa_column=Column(Text))  # access token (optional to persist)
+    refresh_token: str = Field(sa_column=Column(Text))  # long
+    token_uri: str = Field(sa_column=Column(Text))
+    client_id: str = Field(sa_column=Column(Text))
+    client_secret: str = Field(sa_column=Column(Text))
+
+    # store JSON arrays as TEXT; parse on load/save
+    scopes_json: str = Field(sa_column=Column(Text))
+    granted_scopes_json: str = Field(sa_column=Column(Text))
+
+    expiry: datetime | None = None
+    id_token: str | None = Field(default=None, sa_column=Column(Text))
+
+    def scopes(self) -> list[str]:
+        try:
+            v = json.loads(self.scopes_json)
+            return v if isinstance(v, list) else []
+        except Exception:
+            return []
+
+    def granted_scopes(self) -> list[str]:
+        try:
+            v = json.loads(self.granted_scopes_json)
+            return v if isinstance(v, list) else []
+        except Exception:
+            return []
 
 
 class Expense(SQLModel, table=True):
     __tablename__ = "expenses"
-    id: Optional[int] = Field(default=None, primary_key=True)
+    id: int | None = Field(default=None, primary_key=True)
     user_id: int = Field(foreign_key="users.id")
     commerce: str = Field(index=True)
     amount: float = Field()
     currency: Currency = Field(default=Currency.CLP)
     category: ExpenseCategory = Field(default=ExpenseCategory.GENERAL)
     date: datetime = Field(default_factory=datetime.now)
-    description: Optional[str] = Field(default=None)
+    description: str | None = Field(default=None)
 
 
 class Transference(SQLModel, table=True):
     __tablename__ = "transferences"
-    id: Optional[int] = Field(default=None, primary_key=True)
+    id: int | None = Field(default=None, primary_key=True)
     user_id: int = Field(foreign_key="users.id")
     recipient: str = Field(index=True)
     amount: float = Field()
     currency: Currency = Field(default=Currency.CLP)
     category: ExpenseCategory = Field(default=ExpenseCategory.GENERAL)
     date: datetime = Field(default_factory=datetime.now)
-    description: Optional[str] = Field(default=None)
+    description: str | None = Field(default=None)
 
 
 class UserCreate(SQLModel):
@@ -91,22 +113,27 @@ class UserCreate(SQLModel):
     password: str
 
     @field_validator("password")
-    def password_strength(cls, v):
-        if len(v) < 8:
-            raise ValueError("Password must be at least 8 characters")
+    @classmethod
+    def password_strength(cls, v: str) -> str:
+        min_len = 8
+        if len(v) < min_len:
+            msg = "Password must be at least 8 characters"
+            raise ValueError(msg)
         return v
 
 
 class UserLogin(SQLModel):
-    username: Optional[str] = None
-    email: Optional[EmailStr] = None
+    username: str | None = None
+    email: EmailStr | None = None
     password: str
 
     @field_validator("username", "email")
-    def validate_user_identifier(cls, v, values):
+    @classmethod
+    def validate_user_identifier(cls, v: str, values: dict[str, str]) -> str:
         # Ensure at least one identifier is provided
         if not v and not values.get("email") and not values.get("username"):
-            raise ValueError("Either email or username must be provided")
+            msg = "Either email or username must be provided"
+            raise ValueError(msg)
         return v
 
 
@@ -123,7 +150,6 @@ class UserLoginResponse(SQLModel):
     user: UserResponse
     access_token: str
     token_type: str
-
 
 
 class UpdateError(Exception):
@@ -153,15 +179,65 @@ def update_or_create_user(user_data: User) -> None:
         session.commit()
 
 
-def rebuild_credentials(credentials: dict[str, str | None] | UserGoogleCredential) -> Credentials:
-    from oauth_service.google_oauth import CLIENT_CONFIG
+def _normalize_scopes(scopes_val: list | str | None) -> list[str]:
+    import json
 
-    client_config = CLIENT_CONFIG["web"]
+    if scopes_val is None:
+        return []
+    if isinstance(scopes_val, list):
+        return [s for s in scopes_val if isinstance(s, str)]
+    if isinstance(scopes_val, str):
+        # Try JSON first; if not JSON, try comma-splitting; finally treat as single scope
+        try:
+            v = json.loads(scopes_val)
+            if isinstance(v, list):
+                return [s for s in v if isinstance(s, str)]
+        except Exception:
+            logger.error("Cannot load scopes from json, trying to load as string")
+        if "," in scopes_val:
+            return [s.strip() for s in scopes_val.split(",") if s.strip()]
+        return [scopes_val.strip()]
+    return []
+
+
+def rebuild_credentials(credentials: dict[str, Any] | UserGoogleCredential) -> Credentials:
+    from datetime import datetime
+    from google.oauth2.credentials import Credentials
+
+    if isinstance(credentials, dict):
+        token_uri = credentials.get("token_uri")
+        client_id = credentials.get("client_id")
+        client_secret = credentials.get("client_secret")
+        refresh_token = credentials.get("refresh_token")
+        token = credentials.get("token")
+        scopes = _normalize_scopes(credentials.get("scopes") or credentials.get("granted_scopes"))
+        id_token = credentials.get("id_token")
+        expiry = credentials.get("expiry")
+        if isinstance(expiry, str):
+            try:
+                expiry = datetime.fromisoformat(expiry)
+            except Exception:
+                expiry = None
+    else:
+        token_uri = credentials.token_uri
+        client_id = credentials.client_id
+        client_secret = credentials.client_secret
+        refresh_token = credentials.refresh_token
+        token = credentials.token
+        scopes = credentials.scopes() or credentials.granted_scopes()
+        id_token = credentials.id_token
+        expiry = credentials.expiry
+
+    if not refresh_token:
+        raise ValueError("Missing refresh_token; cannot rebuild Credentials")
+
     return Credentials(
-        refresh_token=getattr(credentials, "refresh_token"),
-        scopes=getattr(credentials, "granted_scopes"),
-        token=getattr(credentials, "token"),
-        client_id=client_config.get("client_id"),
-        client_secret=client_config.get("client_secret"),
-        token_uri=client_config.get("token_uri"),
+        token=token,
+        refresh_token=refresh_token,
+        token_uri=token_uri,
+        client_id=client_id,
+        client_secret=client_secret,
+        scopes=scopes or None,
+        id_token=id_token,
+        expiry=expiry,
     )

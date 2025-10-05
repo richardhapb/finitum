@@ -18,20 +18,137 @@ dependencies = [
     "pwdlib[argon2]>=0.2.1",
     "pydantic[email]>=2.11.7",
     "pyjwt>=2.10.1",
+    "pyright>=1.1.405",
     "pytest>=8.4.2",
     "pytz>=2025.2",
     "redis>=6.4.0",
     "requests>=2.32.5",
+    "ruff>=0.13.2",
     "sqlmodel>=0.0.24",
     "starlette>=0.48.0",
+    "ty>=0.0.1a21",
 ]
 
 [tool.ruff]
 target-version = "py313"
+fix = true
 
 # Formatting
 line-length = 120
 indent-width = 4
+
+exclude = [
+    ".git",
+    ".ruff_cache",
+    "__pycache__",
+    ".venv",
+    "ui",
+]
+
+[tool.ruff.lint]
+preview = true
+select = [
+    "E", # Errors
+    "W", # Warnings
+    "F",  # Pyflakes rules
+    "B", # flake-8 bugbear rules
+    "PL", # Pylint rules
+    "DJ", # Django rules
+    "EM", # Error handling
+    "ICN", # Import conventions
+    "LOG", # Logging rules
+    "G",  # Logging format
+    "PT", # PyTest style
+    "RET", # Return statements
+    "SIM", # Simplicity
+    "ARG", # Unused arguments
+    "C4", # Comprehensions
+    "TC", # Type checker rules
+    "C90", # Cyclomatic complexity
+    "N",  # Naming conventions PEP8
+    "UP", # Code modernization suggestions
+    "TRY", # Try/Except rules
+    "RUF", # Ruff specific rules
+    "ANN", # Type annotations
+    "ASYNC", # Asynchronous code rules
+    "S", # Security issues
+]
+
+# Ignored rules
+ignore = [
+    # ERRORS AND PEP8
+    "E501",  # Line too long
+    "E272",  # Multiple spaces before keyword, dict formatting has a warning with this
+    "B008",  # FastAPI deps injection
+
+    # ANNOTATIONS
+    "ANN204", # Missing type annotation for especial method return
+    "ANN002", # Missing type annotation for function *args
+    "ANN003", # Missing type annotation for function **kwargs
+
+    # LOGGING
+    "G201", # Use error instead of exception
+
+    #TODOs
+    "TD003", # Missing link in TODO comment
+
+    # SIMPLICITY
+    "SIM108", # Ternary operator should be used
+    "SIM910", # Use dict.get() without default value
+
+    # RETURN STATEMENTS
+    "RET504", # Innecesary assignment before return
+
+    # RUFF SPECIFIC RULES
+    "RUF012", # Mutable class attributes should be annotated with typing.ClassVar
+
+    # TRY/EXCEPT
+    "TRY003", # Avoid specifying long messages outside the exception class
+    "TRY301", # Abstract raise to an inner function
+    "TRY400", # Prefer loggin.exception over logging.error
+
+
+    # ERROR MESSAGES
+    "EM101", # Comments in except block
+
+    "PLC0415", # Ignore in top-level
+
+    # TESTS
+    "PT009", # Use assert instead of assertEqual // assertEqual give more information about the error
+
+    # WHITESPACES
+    "W293", # Blank line contains whitespace
+
+    # REFACTOR
+    "PLR0904", # Too many public methods > 20
+    "PLR0913", # Too many arguments in function definition (6 > 5)
+    "PLR0917", # Too many positional arguments (6/ 5)
+    "PLR6301", # Allow the use of non-static methods in Django views (self is required)
+]
+
+# Per-file ignores
+[tool.ruff.lint.per-file-ignores]
+"**/tests/*" = [
+    "S101",    # assert statements in tests - they're a standard part of testing
+    "SLF001",  # accessing private members in tests - sometimes needed to verify internal state
+    "T201",    # print statements in tests - useful for debugging test failures
+    "S404",    # subprocess calls in tests - may be needed for testing system interactions
+    "S603",    # subprocess calls without shell=False in tests
+    "S607",    # use of subprocess.run with partial path in tests
+    "S106",    # hardcoded passwords in tests - needed for test fixtures
+    "PT027",   # pytest raises without match - not all exceptions need message validation
+    "PLC2701", # import private members
+    "ANN201",  # The return type is not necessary in tests; it is always None
+    "PLR2004", # Magic numbers
+]
+
+# McCabe complexity
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
+[tool.ruff.format]
+indent-style = "space"
+quote-style = "double"
 
 [tool.pytest.ini_options]
 addopts = [
@@ -122,3 +239,11 @@ prepend_sys_path = [
 # executable = "ruff"
 # options = "check --fix REVISION_SCRIPT_FILENAME"
 
+[tool.ty.environment]
+root = ["./src", "."]
+
+[tool.ty.src]
+include = [
+    "src",
+    "tests",
+]

@@ -1,7 +1,13 @@
 import os
+from collections.abc import Generator
+
 from sqlalchemy import create_engine, event, text
 from sqlalchemy.engine import make_url
 from sqlmodel import Session
+
+from utils.logger import get_logger
+
+logger = get_logger()
 
 # ---- Build engines ----------------------------------------------------------
 
@@ -23,7 +29,7 @@ def _ensure_db_utf8(conn_str: str, db_locale: str = "en_US.UTF-8") -> None:
                 {"n": dbname},
             ).scalar_one()
             if enc.upper() == "SQL_ASCII":
-                raise RuntimeError(f"Database '{dbname}' exists with SQL_ASCII. DROP it first.")
+                raise RuntimeError("Database '%s' exists with SQL_ASCII. DROP it first.", dbname)
             return  # already OK
 
     if "'" in db_locale:
@@ -39,7 +45,7 @@ def _ensure_db_utf8(conn_str: str, db_locale: str = "en_US.UTF-8") -> None:
         conn.exec_driver_sql(create_sql)
 
 
-def _build_engine(conn_str: str):
+def _build_engine(conn_str: str) -> None:
     """
     Build the app engine and force client_encoding UTF8 on connect
     (works with psycopg2 and psycopg3).
@@ -53,7 +59,7 @@ def _build_engine(conn_str: str):
     )
 
     @event.listens_for(engine, "connect")
-    def _force_utf8(dbapi_conn, _):
+    def _force_utf8(dbapi_conn, _) -> None:  # noqa: ANN001
         # psycopg2: native API exists; psycopg3: fallback to SQL
         try:
             dbapi_conn.set_client_encoding("UTF8")
@@ -62,8 +68,8 @@ def _build_engine(conn_str: str):
                 cur = dbapi_conn.cursor()
                 cur.execute("SET client_encoding TO 'UTF8'")
                 cur.close()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.error("Error setting database to UTF8: %s", e)
 
     return engine
 
@@ -81,6 +87,6 @@ _ensure_db_utf8(CONN_STR, db_locale=os.environ.get("DB_LOCALE", "en_US.UTF-8"))
 engine = _build_engine(CONN_STR)
 
 
-def get_session():
+def get_session() -> Generator[Session]:
     with Session(engine) as session:
         yield session

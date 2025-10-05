@@ -13,7 +13,7 @@ logger = get_logger()
 
 def process_new_messages(
     user: User, credentials: Credentials, query: str, session: Session, date_from: datetime | None = None
-):
+) -> None:
     em: EmailManager = EmailManager(user, credentials)
     try:
         messages = em.get_messages(query, date_from)

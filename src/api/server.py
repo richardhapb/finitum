@@ -1,9 +1,8 @@
 import os
-import secrets
 from contextlib import asynccontextmanager
-from typing import Any
 
 import redis
+from collections.abc import AsyncGenerator
 from fastapi import Depends, FastAPI, Request, Response, status
 from fastapi.exceptions import HTTPException
 from fastapi.responses import JSONResponse, RedirectResponse
@@ -31,7 +30,7 @@ logger = get_logger()
 
 
 @asynccontextmanager
-async def lifespan(app_service: FastAPI):
+async def lifespan(_app_service: FastAPI) -> AsyncGenerator[None]:  # noqa: RUF029
     """Application lifespan manager"""
     # Startup
     os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1" if DEBUG else "0"
@@ -63,25 +62,6 @@ app.add_middleware(
 redis_client = redis.Redis(host=REDIS_HOST, port=REDIS_PORT)
 
 
-# Functions for state management
-def generate_oauth_state() -> str:
-    """Generate a unique state token and store it in Redis with expiration."""
-    state = secrets.token_urlsafe(32)
-    # Store in Redis with 10 minute expiration
-    redis_client.setex(f"oauth_state:{state}", 600, "1")
-    return state
-
-
-def validate_oauth_state(state: str) -> bool:
-    """Validate a state token from Redis and delete it if valid."""
-    key = f"oauth_state:{state}"
-    valid = redis_client.exists(key)
-    if valid:
-        # Delete after use (one-time use)
-        redis_client.delete(key)
-    return bool(valid)
-
-
 @app.get("/health", response_class=JSONResponse)
 async def health() -> JSONResponse:
     redis_status = "OK" if redis_client.ping() else "FAILED"
@@ -89,14 +69,14 @@ async def health() -> JSONResponse:
 
 
 @app.get("/debug/state")
-async def debug_session():
+async def debug_session() -> JSONResponse:
     if not DEBUG:
         raise HTTPException(status_code=404, detail="Not found")
     return JSONResponse(content={"state": app.state.__dict__})
 
 
 @app.post("/signup", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
-def signup(user_data: UserCreate, session: Session = Depends(get_session)) -> Any:
+def signup(user_data: UserCreate, session: Session = Depends(get_session)) -> User:
     """
     Register a new user in the system.
 
@@ -132,7 +112,7 @@ def signup(user_data: UserCreate, session: Session = Depends(get_session)) -> An
 
 
 @app.post("/signin", response_model=UserLoginResponse, status_code=status.HTTP_200_OK)
-def signin(request: Request, response: Response, user_data: UserLogin, session: Session = Depends(get_session)) -> Any:
+def signin(response: Response, user_data: UserLogin, session: Session = Depends(get_session)) -> dict[str, str]:
     existing_user = session.exec(
         select(User).where(or_(User.email == user_data.email, User.username == user_data.username))
     ).first()
@@ -178,18 +158,19 @@ def signin(request: Request, response: Response, user_data: UserLogin, session: 
 
 @app.get("/expenses")
 def get_expenses(
-    request: Request, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)
-):
+    _current_user: User = Depends(get_current_user), session: Session = Depends(get_session)
+) -> JSONResponse:
     expenses = session.exec(select(DBExpense)).all()
     return JSONResponse(content={"expenses": [expense.model_dump() for expense in expenses]})
 
 
 @app.get("/google-authorize")
 def auth_google(
-    current_user: User = Depends(get_current_user),
-):
-    state = generate_oauth_state()
-    auth_url, _ = google_oauth.authorize_oauth2(state=state)
+    _current_user: User = Depends(get_current_user),
+) -> RedirectResponse:
+    state = google_oauth.generate_oauth_state(redis_client)
+    client = google_oauth.GoogleClient()
+    auth_url, _ = client.authorize_oauth2(state=state)
     return RedirectResponse(auth_url)
 
 
@@ -200,20 +181,22 @@ def google_callback(
     error: str | None = None,
     current_user: User = Depends(get_current_user),
     session: Session = Depends(get_session),
-):
+) -> Response:
     # Check for OAuth errors
     if error:
-        logger.error(f"OAuth error: {error}")
+        logger.error("OAuth error: %s", error)
         return JSONResponse(status_code=400, content={"error": error})
 
     # Validate state using Redis
-    if not state or not validate_oauth_state(state):
-        logger.debug(f"Invalid state: {state}")
+    if not state or not google_oauth.validate_oauth_state(state, redis_client):
+        logger.debug("Invalid state: %s", state)
         return JSONResponse(status_code=400, content={"error": "Invalid state parameter"})
+
+    client = google_oauth.GoogleClient()
 
     # State is valid, continue with OAuth flow
     authorization_url = str(request.url)
-    credentials = google_oauth.get_credentials(state, authorization_url)
+    credentials = client.get_credentials(state, authorization_url)
 
     save_credentials(current_user, credentials, session)
 

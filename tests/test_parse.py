@@ -2,9 +2,10 @@ from datetime import datetime
 from parse import Currency, ExpenseCategory, Expense, Transference
 from email_manager import Message
 
-remitent ="test@test.com"
+remitent = "test@test.com"
 subject = "this is a test"
 time_obj = datetime(year=2025, month=9, day=12, hour=12, minute=30)
+
 
 def test_amount_data_cc():
     usd_expense = """
@@ -63,7 +64,6 @@ Infórmese sobre la garantía estatal de los depósitos en su banco o en
 www‎.‍cmfchile‎.‍cl ©. Todos los derechos reservados. Comprometidos por un medio
 ambiente mejor, prefiera los medios digitales al papel impreso.
         """.replace("\n", "")
-
 
     msg_usd = Message(remitent, subject, time_obj, usd_expense)
 

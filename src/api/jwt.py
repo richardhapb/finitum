@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, UTC
 import os
 from fastapi.exceptions import HTTPException
 
@@ -16,6 +16,11 @@ from fastapi.security import HTTPBearer
 
 from utils.logger import get_logger
 
+
+class JWTError(Exception):
+    pass
+
+
 logger = get_logger()
 
 bearer_scheme = HTTPBearer()
@@ -26,7 +31,7 @@ jwt.decode(encoded_jwt, "secret", algorithms=["HS256"])
 # Store these in environment variables in production
 SECRET_KEY = os.getenv("SECRET_KEY")
 if not SECRET_KEY:
-    raise Exception("Missed SECRET_KEY")
+    raise JWTError("Missed SECRET_KEY")
 
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
@@ -41,7 +46,7 @@ class Token:
     @classmethod
     def create_refresh_token(cls, data: dict) -> "Token":
         to_encode = data.copy()
-        expire = datetime.now(timezone.utc) + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
+        expire = datetime.now(UTC) + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
         to_encode.update({"exp": expire, "type": "refresh"})
         encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
         return cls(token=encoded_jwt, exp=expire)
@@ -52,9 +57,10 @@ class Token:
             payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
             if payload.get("type") != "refresh":
                 return None
-            return payload
         except PyJWTError:
             return None
+        else:
+            return payload
 
     @classmethod
     async def refresh_access_token(cls, refresh_token: str, session: Session = Depends(get_session)) -> "Token":
@@ -85,9 +91,9 @@ class Token:
         to_encode = data.copy()
 
         if expires_delta:
-            expire = datetime.now(timezone.utc) + expires_delta
+            expire = datetime.now(UTC) + expires_delta
         else:
-            expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+            expire = datetime.now(UTC) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
 
         to_encode.update({"exp": expire})
         encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
@@ -97,9 +103,10 @@ class Token:
     def verify_token(token: str) -> dict | None:
         try:
             payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-            return payload
         except PyJWTError:
             return None
+        else:
+            return payload
 
 
 async def get_current_user(

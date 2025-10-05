@@ -3,22 +3,22 @@ from google.oauth2.credentials import Credentials
 import pytz
 import email
 from googleapiclient.discovery import Resource, build
-from imaplib import IMAP4_SSL
 from typing import cast
 from dataclasses import dataclass
 from utils.logger import get_logger
+from sqlmodel import select
 
 from bs4 import BeautifulSoup
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from models import User, UserGoogleCredential, rebuild_credentials
+    from db.models import User, UserGoogleCredential, rebuild_credentials
 
 TZ = pytz.timezone("America/Santiago")
 logger = get_logger()
 
 
-def remove_html_tags_beautifulsoup(html_doc: str):
+def remove_html_tags_beautifulsoup(html_doc: str) -> str:
     soup = BeautifulSoup(html_doc, "html.parser")
     return " ".join(soup.get_text().strip().split())
 
@@ -104,8 +104,7 @@ class Message:
 
 class EmailManager:
     def __init__(self, user: "User", credentials: Credentials):
-        self.conn: IMAP4_SSL = IMAP4_SSL("imap.gmail.com", 993)
-        self.user: "User" = user
+        self.user: User = user
         self.creds: Credentials = credentials
         self.service: Resource = self.login()
 
@@ -113,16 +112,16 @@ class EmailManager:
         if not self.service:
             self.login()
 
-        result = self.service.users().messages().list(userId='me',q=query).execute()
+        result = self.service.users().messages().list(userId="me", q=query).execute()
         messages = []
 
-        if 'messages' in result:
-            messages.extend(result['messages'])
-        while 'nextPageToken' in result:
-            page_token = result['nextPageToken']
-            result = self.service.users().messages().list(userId='me',q=query, pageToken=page_token).execute()
-            if 'messages' in result:
-                messages.extend(result['messages'])
+        if "messages" in result:
+            messages.extend(result["messages"])
+        while "nextPageToken" in result:
+            page_token = result["nextPageToken"]
+            result = self.service.users().messages().list(userId="me", q=query, pageToken=page_token).execute()
+            if "messages" in result:
+                messages.extend(result["messages"])
         return messages
 
     def login(self) -> Resource:
@@ -136,9 +135,9 @@ class EmailManager:
         n: int = len(msgs)
 
         for i, msg in enumerate(msgs):
-            msg_bytest = self.service.users().messages().get(userId='me', id=msg['id'], format='full').execute()
+            msg_bytest = self.service.users().messages().get(userId="me", id=msg["id"], format="full").execute()
             logger.info("Processing message %d of %d", i + 1, n)
-            parsed = Message.parse_message(cast(bytes, msg_bytest), date_from)
+            parsed = Message.parse_message(cast("bytes", msg_bytest), date_from)
             if parsed:
                 messages.append(parsed)
 
@@ -148,12 +147,18 @@ class EmailManager:
 def _ensure_str(s: bytes | bytearray | str) -> str:
     return bytes(s).decode("utf-8", errors="replace") if isinstance(s, (bytes, bytearray)) else s
 
+
 if __name__ == "__main__":
-    from models import User, UserGoogleCredential, rebuild_credentials
-    from database import get_session
+    from db.models import User, UserGoogleCredential, rebuild_credentials
+    from db.service import get_session
+
     with next(get_session()) as session:
-        user = session.get(User, {"username": "richardhapb"})
-        credentials_obj = session.get(UserGoogleCredential, {"user": user}) if user else None
+        user_query = select(User).where(User.username == "richardhapb")
+        user = session.exec(user_query).one()
+
+        credentials_query = select(UserGoogleCredential).where(UserGoogleCredential.user == user)
+        credentials_obj = session.exec(credentials_query).one() if user else None
+
         if user and credentials_obj:
             credentials = rebuild_credentials(credentials_obj)
             em: EmailManager = EmailManager(user, credentials)

@@ -44,7 +44,7 @@ class ExpenseCategory(Enum):
 
 cat_json = ""
 
-with open("categories.json", "r", encoding="utf-8") as f:
+with open("categories.json", encoding="utf-8") as f:
     cat_json = f.read()
 CATEGORY_KEYWORDS_RAW: dict[str, list[str]] = json.loads(cat_json)
 
@@ -154,8 +154,8 @@ class Transaction:
             for nkw, cat in NORMALIZED_KEYWORDS:
                 if nkw and nkw in norm_text:
                     return cat
-        except Exception as e:
-            logger.exception("Error matching category: %s", e)
+        except Exception:
+            logger.exception("Error matching category: %s")
 
         return ExpenseCategory.GENERAL
 
