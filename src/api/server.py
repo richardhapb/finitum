@@ -204,10 +204,10 @@ def google_callback(
 
 
 def save_credentials(user: User, credentials: dict[str, str | list[str] | None], session: Session) -> None:
-    logger.debug("Saving credentials to user: %s", user)
+    logger.debug("Saving credentials to user: %s", user.username)
 
     new_cred = UserGoogleCredential(
-        user_id=user.id if user.id else 0,
+        user_id=user.id,
         user=user,
         granted_scopes=",".join(list(credentials["granted_scopes"] if credentials["granted_scopes"] else [])),
         token=str(credentials["token"]),

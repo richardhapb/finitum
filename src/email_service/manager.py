@@ -1,21 +1,37 @@
-from datetime import datetime
-from google.oauth2.credentials import Credentials
-import pytz
+from __future__ import annotations
+
+import base64
 import email
-from googleapiclient.discovery import Resource, build
-from typing import cast
+from email.utils import parsedate_to_datetime
 from dataclasses import dataclass
-from utils.logger import get_logger
+from datetime import datetime, UTC, timedelta
+from typing import TYPE_CHECKING
+
+import pytz
+from bs4 import BeautifulSoup
+from googleapiclient.discovery import Resource, build
 from sqlmodel import select
 
-from bs4 import BeautifulSoup
-from typing import TYPE_CHECKING
+TZ = pytz.timezone("America/Santiago")
 
 if TYPE_CHECKING:
     from db.models import User, UserGoogleCredential, rebuild_credentials
+    from email.message import Message as EmailMessage
+    from google.oauth2.credentials import Credentials
 
-TZ = pytz.timezone("America/Santiago")
-logger = get_logger()
+# ---------- utils ----------
+
+
+def _ensure_str(s: bytes | bytearray | str | None) -> str:
+    if s is None:
+        return ""
+    return bytes(s).decode("utf-8", errors="replace") if isinstance(s, (bytes, bytearray)) else s
+
+
+def _b64url_decode(s: str) -> bytes:
+    # Gmail "raw" is base64url without padding
+    padding = "=" * ((4 - len(s) % 4) % 4)
+    return base64.urlsafe_b64decode(s + padding)
 
 
 def remove_html_tags_beautifulsoup(html_doc: str) -> str:
@@ -23,9 +39,69 @@ def remove_html_tags_beautifulsoup(html_doc: str) -> str:
     return " ".join(soup.get_text().strip().split())
 
 
-class AuthenticacionError(Exception):
-    def __init__(self, *args: object) -> None:
-        super().__init__(*args)
+def _parse_date(header_value: str | None) -> datetime:
+    """Robust RFC2822 date parsing -> tz-aware UTC then convert to TZ."""
+    if not header_value:
+        # Fallback: now (tz-aware)
+        return datetime.now(UTC).astimezone(TZ)
+    try:
+        dt = parsedate_to_datetime(header_value)  # returns aware or naive
+    except Exception:
+        dt = datetime.now(UTC)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=UTC)
+    return dt.astimezone(TZ)
+
+
+def _normalize_date_from(date_from: datetime | None) -> datetime | None:
+    if date_from is None:
+        return None
+    if date_from.tzinfo is None:
+        # Assume local TZ if naive
+        date_from = TZ.localize(date_from)
+    return date_from.astimezone(TZ)
+
+
+def _pick_body(msg: EmailMessage) -> str:
+    """Prefer text/plain (inline/none), else text/html stripped; fallback to join."""
+    texts: list[str] = []
+    htmls: list[str] = []
+
+    if msg.is_multipart():
+        for part in msg.walk():
+            ctype = part.get_content_type()
+            disp = (part.get("Content-Disposition") or "").lower()
+            if "attachment" in disp:
+                continue  # skip attachments
+
+            payload = part.get_payload(decode=True)
+            if payload is None:
+                continue
+
+            if ctype == "text/plain":
+                texts.append(_ensure_str(payload))
+            elif ctype == "text/html":
+                htmls.append(remove_html_tags_beautifulsoup(_ensure_str(payload)))
+    else:
+        payload = msg.get_payload(decode=True)
+        if payload is not None:
+            ctype = msg.get_content_type()
+            if ctype == "text/plain":
+                texts.append(_ensure_str(payload))
+            elif ctype == "text/html":
+                htmls.append(remove_html_tags_beautifulsoup(_ensure_str(payload)))
+            else:
+                # Unknown single-part → treat as text
+                texts.append(_ensure_str(payload))
+
+    if texts:
+        return "\n".join(t.strip() for t in texts if t.strip())
+    if htmls:
+        return "\n".join(h.strip() for h in htmls if h.strip())
+    return ""  # nothing usable
+
+
+# ---------- domain ----------
 
 
 @dataclass
@@ -36,85 +112,42 @@ class Message:
     body: str
 
     def __str__(self) -> str:
-        output = ""
-        output += f"From: {self.remitent}\n"
-        output += f"Subject: {self.subject}\n"
-        output += f"Date: {self.date}\n\n"
-        output += f"{self.body}"
-
-        return output
+        return f"From: {self.remitent}\nSubject: {self.subject}\nDate: {self.date}\n\n{self.body}"
 
     @staticmethod
-    def parse_message(raw_email: bytes, date_from: datetime | None = None) -> "Message | None":
-        # Parse the raw email data
-        msg = email.message_from_bytes(raw_email)
+    def parse_message(raw_email_b64url: str, date_from: datetime | None = None) -> Message | None:
+        # Decode base64url -> bytes -> EmailMessage
+        raw_bytes = _b64url_decode(raw_email_b64url)
+        msg: EmailMessage = email.message_from_bytes(raw_bytes)
 
-        # Accessing headers
-        remitent = _ensure_str(msg["from"])
-        subject = _ensure_str(msg["subject"])
-        dt = msg["date"]
+        remitent = _ensure_str(msg.get("from"))
+        subject = _ensure_str(msg.get("subject"))
+        date = _parse_date(_ensure_str(msg.get("date")))
 
-        try:
-            # Try standard format with weekday
-            date = datetime.strptime(dt.split(" (")[0], "%a, %d %b %Y %H:%M:%S %z")
-        except ValueError:
-            try:
-                # Try alternative format without weekday
-                date = datetime.strptime(dt, "%d %b %Y %H:%M:%S %z")
-            except ValueError:
-                logger.exception("Error parsing date (got %r). Falling back to now().", dt)
-                date = datetime.now(TZ)
-
-        if date_from and date.date() < date_from.date():
-            logger.info(
-                "Skipping message, the date is before from the threshold, expected since: %s, message date: %s",
-                date_from.date(),
-                date.date(),
-            )
+        df = _normalize_date_from(date_from)
+        if df and date.date() < df.date():
+            # older than threshold
             return None
 
-        content = ""
-        # Accessing the body
-        if msg.is_multipart():
-            for part in msg.walk():
-                ctype = part.get_content_type()
-                cdisposition = part.get("Content-Disposition")
+        body = _pick_body(msg)
+        return Message(remitent=remitent, subject=subject, date=date, body=body)
 
-                # Extract plain text or HTML body
-                if ctype == "text/plain" and cdisposition is None:
-                    content += _ensure_str(bytes(part.get_payload(decode=True)))
-                elif ctype == "text/html" and cdisposition is None:
-                    html_body = _ensure_str(bytes(part.get_payload(decode=True)))
-                    content += remove_html_tags_beautifulsoup(html_body)
-                # Handle attachments if needed
-                elif cdisposition and "attachment" in cdisposition:
-                    filename = part.get_filename()
-                    if filename:
-                        # Save attachment or process it
-                        content += f"\nAttachment: {filename}"
-        else:
-            # Single part message
-            html_body = _ensure_str(bytes(msg.get_payload(decode=True)))
-            content += remove_html_tags_beautifulsoup(html_body)
 
-        message = Message(remitent, subject, date, content)
-
-        return message
+# ---------- gmail ----------
 
 
 class EmailManager:
-    def __init__(self, user: "User", credentials: Credentials):
+    def __init__(self, user: User, credentials: Credentials):
         self.user: User = user
         self.creds: Credentials = credentials
         self.service: Resource = self.login()
 
-    def search_messages(self, query: str) -> list[dict[str, int | str]]:
-        if not self.service:
-            self.login()
+    def login(self) -> Resource:
+        return build("gmail", "v1", credentials=self.creds)
 
+    def search_messages(self, query: str) -> list[dict[str, int | str]]:
         result = self.service.users().messages().list(userId="me", q=query).execute()
         messages = []
-
         if "messages" in result:
             messages.extend(result["messages"])
         while "nextPageToken" in result:
@@ -124,29 +157,18 @@ class EmailManager:
                 messages.extend(result["messages"])
         return messages
 
-    def login(self) -> Resource:
-        return build("gmail", "v1", credentials=self.creds)
-
     def get_messages(self, query: str, date_from: datetime | None = None) -> list[Message]:
         messages: list[Message] = []
-
         msgs = self.search_messages(query)
-
-        n: int = len(msgs)
-
-        for i, msg in enumerate(msgs):
-            msg_bytest = self.service.users().messages().get(userId="me", id=msg["id"], format="full").execute()
-            logger.info("Processing message %d of %d", i + 1, n)
-            parsed = Message.parse_message(cast("bytes", msg_bytest), date_from)
+        for msg in msgs:
+            r = self.service.users().messages().get(userId="me", id=msg["id"], format="raw").execute()
+            parsed = Message.parse_message(r["raw"], date_from)
             if parsed:
                 messages.append(parsed)
-
         return messages
 
 
-def _ensure_str(s: bytes | bytearray | str) -> str:
-    return bytes(s).decode("utf-8", errors="replace") if isinstance(s, (bytes, bytearray)) else s
-
+# ---------- main (example) ----------
 
 if __name__ == "__main__":
     from db.models import User, UserGoogleCredential, rebuild_credentials
@@ -162,6 +184,24 @@ if __name__ == "__main__":
         if user and credentials_obj:
             credentials = rebuild_credentials(credentials_obj)
             em: EmailManager = EmailManager(user, credentials)
-            em.get_messages("is:unread")
+
+            # Build a Gmail-friendly query (avoid Unix timestamp)
+            # Example: unread since last_update’s date in local TZ
+            last = _normalize_date_from(user.last_update) or datetime.now(TZ)
+            last = datetime.now() - timedelta(days=1)
+            query = f"is:unread after:{last.strftime('%Y/%m/%d')}"
+
+            msgs = em.get_messages(query, date_from=last)
+            for m in msgs:
+                print()
+                print("=" * 80)
+                print(m)
         else:
-            logger.error("Missed user/credentials, user=%s, credentials=%s", user, credentials_obj)
+            from utils.logger import get_logger
+
+            logger = get_logger()
+            logger.error(
+                "Missed user/credentials, user=%s, credentials=%s",
+                user.username if user else None,
+                credentials_obj,
+            )

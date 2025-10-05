@@ -65,7 +65,7 @@ class GoogleClient:
             scopes=SCOPES,
         )
 
-        flow.redirect_uri = REDIRECT_URI
+        flow.redirect_uri = self._redirect_uri
 
         # Generate URL for request to Google's OAuth 2.0 server.
         # Use kwargs to set optional request parameters.
@@ -75,7 +75,7 @@ class GoogleClient:
             access_type="offline",
             state=state,
             # Optional, enable incremental authorization. Recommended as a best practice.
-            include_granted_scopes=True,
+            include_granted_scopes="true",
             # Optional, set prompt to 'consent' will prompt the user for consent
             prompt="consent",
         )

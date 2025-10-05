@@ -111,6 +111,7 @@ ignore = [
     # ERROR MESSAGES
     "EM101", # Comments in except block
 
+    "RUF003", # single quote usage in comments
     "PLC0415", # Ignore in top-level
 
     # TESTS

@@ -1,6 +1,6 @@
 from datetime import datetime
 import json
-from typing import Any, ClassVar
+from typing import Any, ClassVar, Optional
 
 from google.oauth2.credentials import Credentials
 from db.service import get_session
@@ -27,7 +27,7 @@ class User(SQLModel, table=True):
     password: str | None = Field(default=None)
     email: EmailStr = Field(unique=True, index=True)
     last_update: datetime = Field(default_factory=minimum_date_factory)
-    google_credentials: "UserGoogleCredential | None" = Relationship(back_populates="user")
+    google_credentials: Optional["UserGoogleCredential"] = Relationship(back_populates="user")
 
     def set_password(self, password: str) -> None:
         self.password = pwd_context.hash(password)
@@ -53,7 +53,7 @@ class UserGoogleCredential(SQLModel, table=True):
     __tablename__ = "user_google_credentials"
     id: int | None = Field(default=None, primary_key=True)
     user_id: int = Field(foreign_key="users.id")
-    user: "User | None" = Relationship(back_populates="google_credentials", sa_relationship_kwargs={"uselist": False})
+    user: "User" = Relationship(back_populates="google_credentials", sa_relationship_kwargs={"uselist": False})
 
     token: str | None = Field(default=None, sa_column=Column(Text))  # access token (optional to persist)
     refresh_token: str = Field(sa_column=Column(Text))  # long
