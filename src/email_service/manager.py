@@ -10,7 +10,11 @@ from typing import TYPE_CHECKING
 import pytz
 from bs4 import BeautifulSoup
 from googleapiclient.discovery import Resource, build
+from google.auth.exceptions import RefreshError
 from sqlmodel import select
+from utils.logger import get_logger
+
+logger = get_logger()
 
 TZ = pytz.timezone("America/Santiago")
 
@@ -67,32 +71,31 @@ def _pick_body(msg: EmailMessage) -> str:
     texts: list[str] = []
     htmls: list[str] = []
 
+    def handle_payload(payload: str, ctype: str) -> None:
+        if payload is None:
+            return
+
+        if ctype == "text/plain":
+            texts.append(_ensure_str(payload))
+        elif ctype == "text/html":
+            htmls.append(remove_html_tags_beautifulsoup(_ensure_str(payload)))
+        else:
+            # Unknown single-part → treat as text
+            texts.append(_ensure_str(payload))
+
     if msg.is_multipart():
         for part in msg.walk():
-            ctype = part.get_content_type()
             disp = (part.get("Content-Disposition") or "").lower()
             if "attachment" in disp:
                 continue  # skip attachments
 
+            ctype = part.get_content_type()
             payload = part.get_payload(decode=True)
-            if payload is None:
-                continue
-
-            if ctype == "text/plain":
-                texts.append(_ensure_str(payload))
-            elif ctype == "text/html":
-                htmls.append(remove_html_tags_beautifulsoup(_ensure_str(payload)))
+            handle_payload(payload, ctype)
     else:
         payload = msg.get_payload(decode=True)
-        if payload is not None:
-            ctype = msg.get_content_type()
-            if ctype == "text/plain":
-                texts.append(_ensure_str(payload))
-            elif ctype == "text/html":
-                htmls.append(remove_html_tags_beautifulsoup(_ensure_str(payload)))
-            else:
-                # Unknown single-part → treat as text
-                texts.append(_ensure_str(payload))
+        ctype = msg.get_content_type()
+        handle_payload(payload, ctype)
 
     if texts:
         return "\n".join(t.strip() for t in texts if t.strip())
@@ -146,7 +149,14 @@ class EmailManager:
         return build("gmail", "v1", credentials=self.creds)
 
     def search_messages(self, query: str) -> list[dict[str, int | str]]:
-        result = self.service.users().messages().list(userId="me", q=query).execute()
+        try:
+            # your API call
+            result = self.service.users().messages().list(userId="me", q=query).execute()
+        except RefreshError:
+            # Decide: log & mark credentials invalid; ask user to re-link
+            logger.exception("Google OAuth refresh failed; re-consent required")
+            return []
+
         messages = []
         if "messages" in result:
             messages.extend(result["messages"])

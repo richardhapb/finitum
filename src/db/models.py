@@ -1,4 +1,5 @@
-from datetime import datetime
+import os
+from datetime import datetime, UTC
 import json
 from typing import Any, ClassVar, Optional
 
@@ -201,35 +202,48 @@ def _normalize_scopes(scopes_val: list | str | None) -> list[str]:
 
 
 def rebuild_credentials(credentials: dict[str, Any] | UserGoogleCredential) -> Credentials:
-    from datetime import datetime
-    from google.oauth2.credentials import Credentials
+    def _to_aware_utc(dt: datetime | None) -> datetime | None:
+        if not dt:
+            return None
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=UTC)
+        else:
+            dt = dt.astimezone(UTC)
+        return dt
 
-    if isinstance(credentials, dict):
-        token_uri = credentials.get("token_uri")
-        client_id = credentials.get("client_id")
-        client_secret = credentials.get("client_secret")
-        refresh_token = credentials.get("refresh_token")
-        token = credentials.get("token")
-        scopes = _normalize_scopes(credentials.get("scopes") or credentials.get("granted_scopes"))
-        id_token = credentials.get("id_token")
-        expiry = credentials.get("expiry")
-        if isinstance(expiry, str):
-            try:
-                expiry = datetime.fromisoformat(expiry)
-            except Exception:
-                expiry = None
-    else:
-        token_uri = credentials.token_uri
-        client_id = credentials.client_id
-        client_secret = credentials.client_secret
-        refresh_token = credentials.refresh_token
-        token = credentials.token
-        scopes = credentials.scopes() or credentials.granted_scopes()
-        id_token = credentials.id_token
-        expiry = credentials.expiry
+    def _to_scopes(sc: str | None) -> list[str] | None:
+        if not sc:
+            return None
+        if isinstance(sc, str):
+            # accept comma/space separated
+            parts = [s for s in (p.strip() for p in sc.replace(",", " ").split()) if s]
+            return parts or None
+        return None
 
-    if not refresh_token:
-        raise ValueError("Missing refresh_token; cannot rebuild Credentials")
+    token_uri = getattr(credentials, "token_uri", None) or "https://oauth2.googleapis.com/token"
+    client_id = getattr(credentials, "client_id", None) or os.environ.get("GOOGLE_CLIENT")
+    client_secret = getattr(credentials, "client_secret", None) or os.environ.get("GOOGLE_SECRET")
+    refresh_token = getattr(credentials, "refresh_token", None)
+    token = getattr(credentials, "token", None)
+    # If your model exposes methods, handle both shapes:
+    sc_attr = getattr(credentials, "scopes", None)
+    scopes = _to_scopes(sc_attr or getattr(credentials, "granted_scopes", None))
+    id_token = getattr(credentials, "id_token", None)
+    expiry = _to_aware_utc(getattr(credentials, "expiry", None))
+
+    missing = [
+        name
+        for name, val in [
+            ("refresh_token", refresh_token),
+            ("client_id", client_id),
+            ("client_secret", client_secret),
+            ("token_uri", token_uri),
+        ]
+        if not val
+    ]
+    if missing:
+        msg = f"Missing OAuth fields for refresh: {', '.join(missing)}"
+        raise ValueError(msg)
 
     return Credentials(
         token=token,
@@ -237,7 +251,7 @@ def rebuild_credentials(credentials: dict[str, Any] | UserGoogleCredential) -> C
         token_uri=token_uri,
         client_id=client_id,
         client_secret=client_secret,
-        scopes=scopes or None,
+        scopes=scopes,
         id_token=id_token,
         expiry=expiry,
     )
