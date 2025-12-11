@@ -1,6 +1,8 @@
 from datetime import datetime
-from parse import Currency, ExpenseCategory, Expense, Transference
-from email_manager import Message
+from parsers.expense import Expense
+from parsers.transference import Transference
+from parsers.base import Currency, ExpenseCategory
+from email_service.manager import Message
 
 remitent = "test@test.com"
 subject = "this is a test"

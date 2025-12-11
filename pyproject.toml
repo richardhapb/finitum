@@ -155,7 +155,7 @@ quote-style = "double"
 addopts = [
     "--import-mode=importlib",
 ]
-pythonpath = "src"
+pythonpath = ["src"]
 python_files = ["test_*.py", "*_tests.py"]
 
 [tool.alembic]
