@@ -72,7 +72,7 @@ def _build_engine(conn_str: str) -> None:
     return engine
 
 
-CONN_STR = os.environ.get("CONN_STR", "")
+CONN_STR = os.environ.get("CONN_STR")
 if not CONN_STR:
     raise RuntimeError("Set CONN_STR env var, e.g. postgresql+psycopg://user:pass@localhost/finitum")
 
