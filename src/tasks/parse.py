@@ -1,6 +1,10 @@
+from datetime import datetime, timedelta
+
+from sqlmodel import select
+
+from email_service.manager import EmailManager, normalize_date_from
 from tasks.app import celery
-from email_service.processor import process_new_messages
-from db.models import User, UserGoogleCredential, rebuild_credentials
+from utils.config import TZ
 from utils.logger import get_logger
 
 logger = get_logger()
@@ -18,12 +22,35 @@ logger = get_logger()
     routing_key="parse",
 )
 def get_messages() -> None:
+    from db.models import User, UserGoogleCredential, rebuild_credentials
     from db.service import get_session
+
     with next(get_session()) as session:
-        user = session.get(User, {"username": "richardhapb"})
-        credentials_obj = session.get(UserGoogleCredential, {"user": user}) if user else None
+        user_query = select(User).where(User.username == "richardhapb")
+        user = session.exec(user_query).one()
+
+        credentials_query = select(UserGoogleCredential).where(UserGoogleCredential.user == user)
+        credentials_obj = session.exec(credentials_query).one() if user else None
+
         if user and credentials_obj:
             credentials = rebuild_credentials(credentials_obj)
-            process_new_messages(user, credentials, "is:unread", session, user.last_update)
+            em: EmailManager = EmailManager(user, credentials)
+
+            last = normalize_date_from(user.last_update) or datetime.now(TZ)
+            last = datetime.now() - timedelta(days=1)
+            query = f"is:unread after:{last.strftime('%Y/%m/%d')}"
+
+            msgs = em.get_messages(query, date_from=last)
+            for m in msgs:
+                print()
+                print("=" * 80)
+                print(m)
         else:
-            logger.error("Missed user/credentials, user=%s, credentials=%s", user, credentials_obj)
+            from utils.logger import get_logger
+
+            logger = get_logger()
+            logger.error(
+                "Missed user/credentials, user=%s, credentials=%s",
+                user.username if user else None,
+                credentials_obj,
+            )

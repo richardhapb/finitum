@@ -1,8 +1,9 @@
 import os
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from typing import TYPE_CHECKING, cast
 
 import redis
-from collections.abc import AsyncGenerator
 from fastapi import Depends, FastAPI, Request, Response, status
 from fastapi.exceptions import HTTPException
 from fastapi.responses import JSONResponse, RedirectResponse
@@ -25,6 +26,9 @@ from db.service import get_session
 from oauth_service import google_oauth
 from utils.config import DEBUG, REDIS_HOST, REDIS_PORT, REFRESH_TOKEN_KEY
 from utils.logger import get_logger
+
+if TYPE_CHECKING:
+    from starlette.middleware import _MiddlewareFactory
 
 logger = get_logger()
 
@@ -49,7 +53,7 @@ app = FastAPI(
 )
 
 app.add_middleware(
-    CORSMiddleware,
+    cast("_MiddlewareFactory", CORSMiddleware),
     allow_origins=os.getenv(
         "ALLOWED_ORIGINS", "http://0.0.0.0:9090 http://localhost:9090 http://127.0.0.1:9090"
     ).split(),
@@ -112,7 +116,7 @@ def signup(user_data: UserCreate, session: Session = Depends(get_session)) -> Us
 
 
 @app.post("/signin", response_model=UserLoginResponse, status_code=status.HTTP_200_OK)
-def signin(response: Response, user_data: UserLogin, session: Session = Depends(get_session)) -> dict[str, str]:
+def signin(response: Response, user_data: UserLogin, session: Session = Depends(get_session)) -> dict[str, str | User]:
     existing_user = session.exec(
         select(User).where(or_(User.email == user_data.email, User.username == user_data.username))
     ).first()
@@ -146,8 +150,9 @@ def signin(response: Response, user_data: UserLogin, session: Session = Depends(
 
     logger.debug("Logged in successfully")
     response.status_code = status.HTTP_200_OK
-
     response.status_code = status.HTTP_200_OK
+
+    assert existing_user is not None
 
     return {
         "user": existing_user,

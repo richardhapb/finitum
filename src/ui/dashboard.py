@@ -3,6 +3,7 @@ from dash import Dash, html, dcc, callback, Output, Input
 import plotly.express as px
 import plotly.graph_objects as go
 import pandas as pd
+import numpy as np
 import os
 from sqlalchemy import create_engine
 from datetime import datetime
@@ -53,7 +54,7 @@ def load_financial_data():
             transfers_df["date"] = pd.to_datetime(transfers_df["date"])
 
         # Combine datasets
-        all_columns = ["amount", "currency", "category", "date", "description", "type", "counterparty"]
+        all_columns = np.array(["amount", "currency", "category", "date", "description", "type", "counterparty"])
 
         expenses_clean = expenses_df[all_columns] if len(expenses_df) > 0 else pd.DataFrame(columns=all_columns)
         transfers_clean = transfers_df[all_columns] if len(transfers_df) > 0 else pd.DataFrame(columns=all_columns)
