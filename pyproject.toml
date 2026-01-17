@@ -7,7 +7,7 @@ dependencies = [
     "bs4>=0.0.2",
     "celery>=5.5.3",
     "dash>=3.2.0",
-    "fastapi>=0.117.1",
+    "fastapi[standard]>=0.117.1",
     "google-api-python-client>=2.182.0",
     "google-api-python-client-stubs>=1.30.0",
     "google-auth-oauthlib>=1.2.2",
@@ -24,6 +24,7 @@ dependencies = [
     "redis>=6.4.0",
     "requests>=2.32.5",
     "ruff>=0.13.2",
+    "sqlalchemy>=2.0.43",
     "sqlmodel>=0.0.24",
     "starlette>=0.48.0",
     "ty>=0.0.1a21",
@@ -107,7 +108,6 @@ ignore = [
     "TRY301", # Abstract raise to an inner function
     "TRY400", # Prefer loggin.exception over logging.error
 
-
     # ERROR MESSAGES
     "EM101", # Comments in except block
 
@@ -115,7 +115,7 @@ ignore = [
     "PLC0415", # Ignore in top-level
 
     # TESTS
-    "PT009", # Use assert instead of assertEqual // assertEqual give more information about the error
+    "S101",    # assert statements in tests - they're a standard part of testing
 
     # WHITESPACES
     "W293", # Blank line contains whitespace
@@ -130,7 +130,6 @@ ignore = [
 # Per-file ignores
 [tool.ruff.lint.per-file-ignores]
 "**/tests/*" = [
-    "S101",    # assert statements in tests - they're a standard part of testing
     "SLF001",  # accessing private members in tests - sometimes needed to verify internal state
     "T201",    # print statements in tests - useful for debugging test failures
     "S404",    # subprocess calls in tests - may be needed for testing system interactions

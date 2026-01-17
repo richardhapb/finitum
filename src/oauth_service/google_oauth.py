@@ -101,9 +101,11 @@ class GoogleClient:
 
         return credentials_dict
 
-    def _credentials_to_dict(self) -> dict[str, object]:
+    def _credentials_to_dict(self) -> dict[str, str | list[str] | None]:
         if not self.credentials:
             return {}
+
+        expiry = getattr(self.credentials, "expiry", None)
         return {
             "token": self.credentials.token,
             "refresh_token": self.credentials.refresh_token,
@@ -112,9 +114,7 @@ class GoogleClient:
             "client_secret": self._config["web"]["client_secret"],
             "scopes": list(getattr(self.credentials, "scopes", []) or []),
             "granted_scopes": list(getattr(self.credentials, "granted_scopes", []) or []),
-            "expiry": getattr(self.credentials, "expiry", None).isoformat()
-            if getattr(self.credentials, "expiry", None)
-            else None,
+            "expiry": expiry.isoformat() if expiry else None,
             "id_token": getattr(self.credentials, "id_token", None),
             "account_email_hint": None,  # fill later if you decode id_token
         }

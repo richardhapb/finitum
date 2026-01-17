@@ -23,8 +23,6 @@ if TYPE_CHECKING:
     from email.message import Message as EmailMessage
     from google.oauth2.credentials import Credentials
 
-# ---------- utils ----------
-
 
 def _ensure_str(s: bytes | bytearray | str | None) -> str:
     if s is None:
@@ -104,9 +102,6 @@ def _pick_body(msg: EmailMessage) -> str:
     return ""  # nothing usable
 
 
-# ---------- domain ----------
-
-
 @dataclass
 class Message:
     remitent: str
@@ -134,9 +129,6 @@ class Message:
 
         body = _pick_body(msg)
         return Message(remitent=remitent, subject=subject, date=date, body=body)
-
-
-# ---------- gmail ----------
 
 
 class EmailManager:
@@ -178,8 +170,6 @@ class EmailManager:
         return messages
 
 
-# ---------- main (example) ----------
-
 if __name__ == "__main__":
     from db.models import User, UserGoogleCredential, rebuild_credentials
     from db.service import get_session
@@ -195,8 +185,6 @@ if __name__ == "__main__":
             credentials = rebuild_credentials(credentials_obj)
             em: EmailManager = EmailManager(user, credentials)
 
-            # Build a Gmail-friendly query (avoid Unix timestamp)
-            # Example: unread since last_update’s date in local TZ
             last = _normalize_date_from(user.last_update) or datetime.now(TZ)
             last = datetime.now() - timedelta(days=1)
             query = f"is:unread after:{last.strftime('%Y/%m/%d')}"

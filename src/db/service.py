@@ -9,8 +9,6 @@ from utils.logger import get_logger
 
 logger = get_logger()
 
-# ---- Build engines ----------------------------------------------------------
-
 
 def _ensure_db_utf8(conn_str: str, db_locale: str = "en_US.UTF-8") -> None:
     url = make_url(conn_str)
@@ -73,8 +71,6 @@ def _build_engine(conn_str: str) -> None:
 
     return engine
 
-
-# ---- Public API -------------------------------------------------------------
 
 CONN_STR = os.environ.get("CONN_STR", "")
 if not CONN_STR:
