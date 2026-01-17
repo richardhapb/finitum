@@ -17,7 +17,6 @@ class Currency(Enum):
 class ExpenseCategory(Enum):
     GENERAL = "general"
 
-    # New categories (English titles)
     FOOD = "food"
     EDUCATION = "education"
     TRANSPORT = "transport"

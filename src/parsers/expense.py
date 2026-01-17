@@ -29,8 +29,12 @@ class Expense(Transaction):
         self.date = date
 
     @classmethod
-    def get_expense(cls, msg: Message) -> "Expense":
+    def get_expense(cls, msg: Message) -> "Expense | None":
         amount_str = cls._get_amount_str(msg.body)
+
+        if not amount_str:
+            return None
+
         if "giro" in msg.subject.lower():
             commerce_str = "GIRO EN CAJERO"
         else:
@@ -64,9 +68,12 @@ class Expense(Transaction):
         )
 
 
-def save_extracted_expense(msg: Message, session: Session) -> "DBExpense":
+def save_extracted_expense(msg: Message, session: Session) -> "DBExpense | None":
     """Extract expense from text content and save to database"""
     expense_parser = Expense.get_expense(msg)
+    if not expense_parser:
+        return None
+
     db_expense = expense_parser.to_db_model()
     session.add(db_expense)
     session.commit()

@@ -1,39 +1,17 @@
+from parsers.expense import save_extracted_expense
+from parsers.transference import save_extracted_transference
 from datetime import datetime, timedelta
 
-from sqlmodel import select
+from sqlmodel import select, Session
 
-from email_service.manager import EmailManager, normalize_date_from
+from db.models import User, UserGoogleCredential, rebuild_credentials
+from db.service import get_session
+from email_service.manager import EmailManager, Message, normalize_date_from
 from tasks.app import celery
 from utils.config import TZ
 from utils.logger import get_logger
-from db.models import User, UserGoogleCredential, rebuild_credentials
-from google.oauth2.credentials import Credentials
 
 logger = get_logger()
-
-
-def get_messages() -> None:
-    from db.service import get_session
-
-    users_query = select(User)
-    with next(get_session()) as session:
-        users = session.exec(users_query).all()
-
-        logger.info("Retrieving messages for %d users", len(users))
-
-        for user in users:
-            credentials_query = select(UserGoogleCredential).where(UserGoogleCredential.user == user)
-            credentials_obj = session.exec(credentials_query).one() if user else None
-
-            if credentials_obj:
-                credentials = rebuild_credentials(credentials_obj)
-                get_user_messages.si(user, credentials).delay()
-            else:
-                logger.error(
-                    "Missed user/credentials, user=%s, credentials=%s",
-                    user.username if user else None,
-                    credentials_obj,
-                )
 
 
 @celery.task(
@@ -47,17 +25,81 @@ def get_messages() -> None:
     queue="parse",
     routing_key="parse",
 )
-def get_user_messages(user: User, credentials: Credentials) -> None:
-    logger.info("Retrieving messages for user %s", user.username)
+def get_user_messages(user_id: int) -> None:
+    logger.info("Retrieving messages for user %d", user_id)
 
-    em: EmailManager = EmailManager(user, credentials)
+    with next(get_session()) as session:
+        user_query = select(User).where(User.id == user_id)
+        user = session.exec(user_query).one()
 
-    last = normalize_date_from(user.last_update) or datetime.now(TZ)
-    last = datetime.now() - timedelta(days=1)
-    query = f"is:unread after:{last.strftime('%Y/%m/%d')}"
+        credentials_query = select(UserGoogleCredential).where(UserGoogleCredential.user == user)
+        credentials_obj = session.exec(credentials_query).one() if user else None
 
-    msgs = em.get_messages(query, date_from=last)
-    for m in msgs:
-        logger.debug("\n=" * 80)
-        logger.debug(m)
-    logger.info("%d messages fetched successfully for user %s", len(msgs), user.username)
+        if credentials_obj:
+            credentials = rebuild_credentials(credentials_obj)
+        else:
+            logger.error(
+                "Missed user/credentials, user=%s, credentials=%s",
+                user.username if user else None,
+                credentials_obj,
+            )
+
+        em: EmailManager = EmailManager(credentials)
+
+        last = normalize_date_from(user.last_update) or datetime.now(TZ)
+        last = datetime.now() - timedelta(days=1)
+        query = f"is:unread after:{last.strftime('%Y/%m/%d')}"
+
+        msgs = em.get_messages(query, date_from=last)
+        logger.info("%d messages fetched successfully for user %s", len(msgs), user.username)
+
+        saved_msgs = 0
+        for m in msgs:
+            saved = save_message(m, session)
+            if saved:
+                saved_msgs += 1
+
+        logger.info("%d messages saved for user %s", saved_msgs, user.username)
+
+
+@celery.task(
+    bind=False,
+    autoretry_for=(Exception,),
+    retry_backoff=True,
+    retry_backoff_max=300,
+    retry_jitter=True,
+    max_retries=5,
+    default_retry_delay=5,
+    queue="periodic",
+    routing_key="periodic",
+)
+def get_messages() -> None:
+    users_query = select(User)
+    with next(get_session()) as session:
+        users = session.exec(users_query).all()
+
+        logger.info("Retrieving messages for %d users", len(users))
+
+        for i, user in enumerate(users):
+            get_user_messages.apply_async(
+                args=[user.id],
+                countdown=i * 2,  # Avoid Redis flood
+            )
+
+
+def save_message(msg: Message, session: Session) -> bool:
+    if "entre mis cuentas" in msg.subject.lower():
+        logger.info("Skipping transference between owned accounts")
+        return False
+    if "transferencia" in msg.subject.lower():
+        logger.info("Saving transference")
+        _ = save_extracted_transference(msg, session)
+    else:
+        logger.debug("Trying to save expense")
+        result = save_extracted_expense(msg, session)
+
+        if not result:
+            logger.debug("Email is not a expense")
+            return False
+
+    return True

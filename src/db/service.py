@@ -18,7 +18,7 @@ def _ensure_db_utf8(conn_str: str, db_locale: str = "en_US.UTF-8") -> None:
 
     admin_url = url.set(database="postgres")
 
-    # 1) Check if DB exists + encoding (normal connection; transactions allowed)
+    # Check if DB exists + encoding (normal connection; transactions allowed)
     with create_engine(admin_url).connect() as conn:
         exists = conn.execute(text("SELECT 1 FROM pg_database WHERE datname = :n"), {"n": dbname}).scalar() is not None
         if exists:

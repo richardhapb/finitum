@@ -1,3 +1,4 @@
+from celery.schedules import crontab
 from celery import Celery
 from kombu import Queue, Exchange
 import os
@@ -16,10 +17,11 @@ celery = Celery(
 default_ex = Exchange(APP_NAME, type="direct")
 celery.conf.task_queues = (
     Queue("parse", default_ex, routing_key="parse"),
+    Queue("periodic", default_ex, routing_key="periodic"),
 )
-celery.conf.task_default_queue = "parse"
+celery.conf.task_default_queue = "periodic"
 celery.conf.task_default_exchange = APP_NAME
-celery.conf.task_default_routing_key = "parse"
+celery.conf.task_default_routing_key = "periodic"
 
 # Reliability & perf
 celery.conf.update(
@@ -31,9 +33,20 @@ celery.conf.update(
     task_acks_late=True,  # ack only after task completes
     task_reject_on_worker_lost=True,  # requeue on worker crash
     worker_prefetch_multiplier=1,  # avoid hogging tasks under load
-    task_time_limit=60 * 5,  # hard kill runaway tasks (5 min)
+    task_time_limit=60 * 10,  # hard kill runaway tasks (10 min)
     task_soft_time_limit=60 * 4,  # soft timeout for cleanup
     result_expires=60 * 60,  # 1h
     enable_utc=True,
     timezone=os.getenv("TZ", "America/Santiago"),
 )
+
+celery.conf.beat_schedule = {
+    "fetch-all-users-messages": {
+        "task": "tasks.email.get_messages",
+        "schedule": crontab(hour="8,20"),
+        "options": {
+            "queue": "periodic",
+            "routing_key": "periodic",
+        },
+    },
+}

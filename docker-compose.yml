@@ -39,7 +39,10 @@ services:
         depends_on:
             redis: { condition: service_healthy }
 
-        volumes: ["./src:/app/src"]
+        volumes:
+            - ./src:/app/src
+            - beat-data:/data
+
         restart: unless-stopped
 
     alembic:

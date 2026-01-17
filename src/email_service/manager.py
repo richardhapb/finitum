@@ -4,6 +4,7 @@ import base64
 import email
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from email.message import Message as EmailMessage
 from email.utils import parsedate_to_datetime
 from typing import TYPE_CHECKING
 
@@ -17,15 +18,15 @@ from utils.logger import get_logger
 logger = get_logger()
 
 if TYPE_CHECKING:
-    from email.message import Message as EmailMessage
-    from db.models import User
-
     from google.oauth2.credentials import Credentials
 
 
-def _ensure_str(s: bytes | bytearray | str | None) -> str:
+def _ensure_str(s: bytes | bytearray | str | EmailMessage | None) -> str:
     if s is None:
         return ""
+    if isinstance(s, EmailMessage):
+        return str(s)
+
     return bytes(s).decode("utf-8", errors="replace") if isinstance(s, (bytes, bytearray)) else s
 
 
@@ -35,7 +36,7 @@ def _b64url_decode(s: str) -> bytes:
     return base64.urlsafe_b64decode(s + padding)
 
 
-def remove_html_tags_beautifulsoup(html_doc: str) -> str:
+def remove_html_tags(html_doc: str) -> str:
     soup = BeautifulSoup(html_doc, "html.parser")
     return " ".join(soup.get_text().strip().split())
 
@@ -75,7 +76,7 @@ def _pick_body(msg: EmailMessage) -> str:
         if ctype == "text/plain":
             texts.append(_ensure_str(payload))
         elif ctype == "text/html":
-            htmls.append(remove_html_tags_beautifulsoup(_ensure_str(payload)))
+            htmls.append(remove_html_tags(_ensure_str(payload)))
         else:
             # Unknown single-part → treat as text
             texts.append(_ensure_str(payload))
@@ -87,16 +88,12 @@ def _pick_body(msg: EmailMessage) -> str:
                 continue  # skip attachments
 
             ctype = part.get_content_type()
-            payload = part.get_payload(decode=True)
-
-            assert isinstance(payload, str), "Payload shoud be decoded"
+            payload = _ensure_str(part.get_payload(decode=True))
 
             handle_payload(payload, ctype)
     else:
-        payload = msg.get_payload(decode=True)
         ctype = msg.get_content_type()
-
-        assert isinstance(payload, str), "Payload shoud be decoded"
+        payload = _ensure_str(msg.get_payload(decode=True))
 
         handle_payload(payload, ctype)
 
@@ -137,8 +134,7 @@ class Message:
 
 
 class EmailManager:
-    def __init__(self, user: User, credentials: Credentials):
-        self.user: User = user
+    def __init__(self, credentials: Credentials):
         self.creds: Credentials = credentials
         self.service: Resource = self.login()
 
@@ -148,6 +144,7 @@ class EmailManager:
         return build("gmail", "v1", credentials=self.creds)
 
     def search_messages(self, query: str) -> list[dict[str, int | str]]:
+        """Perform the query and traverse all the messages of the response"""
         try:
             # API call
             result = self.service.users().messages().list(userId="me", q=query).execute()  # type: ignore
@@ -166,13 +163,25 @@ class EmailManager:
         return messages
 
     def get_messages(self, query: str, date_from: datetime | None = None) -> list[Message]:
+        """
+        Traverse all the messages from the user and parse them, filter according
+        to the received query and form the date if it is passed, otherwise get the latest
+        update for the user.
+        """
+
         messages: list[Message] = []
         msgs = self.search_messages(query)
-        for msg in msgs:
+        n = len(msgs)
+        logger.info("%d messages received", n)
+        for i, msg in enumerate(msgs):
+            logger.debug("Processing %d/%d", i, n)
+
             r = self.service.users().messages().get(userId="me", id=msg["id"], format="raw").execute()  # type: ignore
             parsed = Message.parse_message(r["raw"], date_from)
             if parsed:
                 messages.append(parsed)
+
+        logger.info("Returning %d messages", len(messages))
         return messages
 
 
@@ -180,3 +189,4 @@ if __name__ == "__main__":
     from tasks.email import get_messages
 
     get_messages()
+    logger.info("Get messages task triggered")

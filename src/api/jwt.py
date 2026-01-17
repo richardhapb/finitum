@@ -28,7 +28,6 @@ bearer_scheme = HTTPBearer()
 encoded_jwt = jwt.encode({"some": "payload"}, "secret", algorithm="HS256")
 jwt.decode(encoded_jwt, "secret", algorithms=["HS256"])
 
-# Store these in environment variables in production
 SECRET_KEY = os.getenv("SECRET_KEY")
 if not SECRET_KEY:
     raise JWTError("Missed SECRET_KEY")
