@@ -144,7 +144,7 @@ class UserResponse(SQLModel):
     email: EmailStr
     last_update: datetime
 
-    model_config: ClassVar[dict[str, Any]] = {"from_attributes": True}  # type: ignore[assignment]
+    model_config: ClassVar[dict[str, Any]] = {"from_attributes": True}
 
 
 class UserLoginResponse(SQLModel):

@@ -11,7 +11,6 @@ from bs4 import BeautifulSoup
 from google.auth.exceptions import RefreshError
 from googleapiclient.discovery import Resource, build
 
-from tasks.parse import get_messages
 from utils.config import TZ
 from utils.logger import get_logger
 
@@ -178,4 +177,6 @@ class EmailManager:
 
 
 if __name__ == "__main__":
-    get_messages.si.apply_async()
+    from tasks.email import get_messages
+
+    get_messages()

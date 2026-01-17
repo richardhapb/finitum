@@ -12,7 +12,7 @@ from db.models import User
 from sqlmodel import Session, select
 from jwt.exceptions import PyJWTError
 
-from fastapi.security import HTTPBearer
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 from utils.logger import get_logger
 
@@ -110,8 +110,11 @@ class Token:
 
 
 async def get_current_user(
-    request: Request, token: str = Depends(bearer_scheme), session: Session = Depends(get_session)
+    request: Request,
+    creds: HTTPAuthorizationCredentials = Depends(bearer_scheme),
+    session: Session = Depends(get_session),
 ) -> User:
+    token = creds.credentials
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",

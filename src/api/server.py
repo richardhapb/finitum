@@ -1,3 +1,4 @@
+import jwt
 import os
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
@@ -170,9 +171,7 @@ def get_expenses(
 
 
 @app.get("/google-authorize")
-def auth_google(
-    _current_user: User = Depends(get_current_user),
-) -> RedirectResponse:
+def auth_google() -> RedirectResponse:
     state = google_oauth.generate_oauth_state(redis_client)
     client = google_oauth.GoogleClient()
     auth_url, _ = client.authorize_oauth2(state=state)
@@ -184,28 +183,55 @@ def google_callback(
     request: Request,
     state: str,
     error: str | None = None,
-    current_user: User = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> Response:
-    # Check for OAuth errors
     if error:
         logger.error("OAuth error: %s", error)
-        return JSONResponse(status_code=400, content={"error": error})
+        raise HTTPException(status_code=400, detail=error)
 
-    # Validate state using Redis
     if not state or not google_oauth.validate_oauth_state(state, redis_client):
         logger.debug("Invalid state: %s", state)
-        return JSONResponse(status_code=400, content={"error": "Invalid state parameter"})
+        raise HTTPException(status_code=400, detail="Invalid state parameter")
 
     client = google_oauth.GoogleClient()
-
-    # State is valid, continue with OAuth flow
     authorization_url = str(request.url)
-    credentials = client.get_credentials(state, authorization_url)
+    credentials_dict = client.get_credentials(state, authorization_url)
 
-    save_credentials(current_user, credentials, session)
+    id_token = credentials_dict.get("id_token")
+    if not id_token:
+        raise HTTPException(status_code=400, detail="Missing id_token from Google")
 
-    return RedirectResponse("/expenses")
+    assert isinstance(id_token, str)
+    decoded = jwt.decode(id_token, options={"verify_signature": False})
+
+    email = decoded.get("email")
+    if not email:
+        raise HTTPException(status_code=400, detail="Email not present in Google token")
+
+    user = session.exec(select(User).where(User.email == email)).first()
+
+    if not user:
+        user = User(username=email, email=email)
+        session.add(user)
+        session.commit()
+        session.refresh(user)
+
+    save_credentials(user, credentials_dict, session)
+
+    access = Token.create_access_token({"sub": user.username})
+    refresh = Token.create_refresh_token({"sub": user.username})
+
+    response = RedirectResponse("/expenses")
+    response.set_cookie(
+        key=REFRESH_TOKEN_KEY,
+        value=refresh.token,
+        httponly=True,
+        samesite="lax",
+    )
+
+    response.headers["Authorization"] = f"Bearer {access.token}"
+
+    return response
 
 
 def save_credentials(user: User, credentials: dict[str, str | list[str] | None], session: Session) -> None:

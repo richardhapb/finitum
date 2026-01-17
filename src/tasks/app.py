@@ -8,7 +8,7 @@ celery = Celery(
     broker=os.getenv("CELERY_BROKER_URL", REDIS_URL),
     backend=os.getenv("CELERY_RESULT_BACKEND", REDIS_URL),
     include=[
-        "tasks.parse",
+        "tasks.email",
     ],
 )
 

@@ -22,10 +22,12 @@ services:
         image: finitum-api:latest
         command: celery -A tasks.app:celery worker --loglevel=INFO --concurrency=${CELERY_CONCURRENCY:-2}
         env_file: .env
+        volumes: ["./src:/app/src"]
         depends_on:
             db: { condition: service_healthy }
             redis: { condition: service_healthy }
         restart: unless-stopped
+
     beat:
         image: finitum-api:latest
         working_dir: /app
@@ -37,7 +39,7 @@ services:
         depends_on:
             redis: { condition: service_healthy }
 
-        volumes: ["beat-data:/data"]
+        volumes: ["./src:/app/src"]
         restart: unless-stopped
 
     alembic:
