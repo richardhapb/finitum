@@ -1,12 +1,11 @@
-from parsers.expense import save_extracted_expense
-from parsers.transference import save_extracted_transference
 from datetime import datetime, timedelta
 
-from sqlmodel import select, Session
+from sqlmodel import Session, select
 
 from db.models import User, UserGoogleCredential, rebuild_credentials
 from db.service import get_session
 from email_service.manager import EmailManager, Message, normalize_date_from
+from parsers.parser import save_expense, EmailParser, BankNotFoundError
 from tasks.app import celery
 from utils.config import TZ
 from utils.logger import get_logger
@@ -44,6 +43,14 @@ def get_user_messages(user_id: int) -> None:
                 credentials_obj,
             )
 
+        bank = "bancoDeChile"
+        parser = EmailParser(bank)
+        try:
+            parser.build_parser()
+        except BankNotFoundError:
+            logger.exception("Cannot parse the bank")
+            return
+
         em: EmailManager = EmailManager(credentials)
 
         last = normalize_date_from(user.last_update) or datetime.now(TZ)
@@ -55,7 +62,7 @@ def get_user_messages(user_id: int) -> None:
 
         saved_msgs = 0
         for m in msgs:
-            saved = save_message(m, session)
+            saved = save_message(parser, m, session)
             if saved:
                 saved_msgs += 1
 
@@ -87,19 +94,11 @@ def get_messages() -> None:
             )
 
 
-def save_message(msg: Message, session: Session) -> bool:
-    if "entre mis cuentas" in msg.subject.lower():
-        logger.info("Skipping transference between owned accounts")
-        return False
-    if "transferencia" in msg.subject.lower():
-        logger.info("Saving transference")
-        _ = save_extracted_transference(msg, session)
-    else:
-        logger.debug("Trying to save expense")
-        result = save_extracted_expense(msg, session)
+def save_message(parser: EmailParser, msg: Message, session: Session) -> bool:
+    result = save_expense(parser, msg, session)
 
-        if not result:
-            logger.debug("Email is not a expense")
-            return False
+    if not result:
+        logger.debug("Email is not a expense")
+        return False
 
     return True

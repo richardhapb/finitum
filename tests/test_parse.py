@@ -1,15 +1,19 @@
 from datetime import datetime
-from parsers.expense import Expense
-from parsers.transference import Transference
+from parsers.parser import EmailParser
 from parsers.base import Currency, ExpenseCategory
 from email_service.manager import Message
+from parsers.transference import Transference
+from parsers.expense import Expense
 
 remitent = "test@test.com"
-subject = "this is a test"
 time_obj = datetime(year=2025, month=9, day=12, hour=12, minute=30)
+
+BANK = "bancoDeChile"
 
 
 def test_amount_data_cc():
+    parser = EmailParser(BANK)
+    parser.build_parser()
     usd_expense = """
 Banco de Chile Richard Hector Alexander Pe a Bonifaz: Te informamos que se ha realizado
 una compra por US$20,88 con Tarjeta de Crédito ****2662 en APPLE.COM BILL CUPERTINO US
@@ -67,9 +71,11 @@ www‎.‍cmfchile‎.‍cl ©. Todos los derechos reservados. Comprometidos por
 ambiente mejor, prefiera los medios digitales al papel impreso.
         """.replace("\n", "")
 
+    subject = "Cargo en cuenta"
     msg_usd = Message(remitent, subject, time_obj, usd_expense)
 
-    expense = Expense.get_expense(msg_usd)
+    expense = parser.get_expense(msg_usd)
+    assert isinstance(expense, Expense)
     assert expense.value == 20.88
     assert expense.currency == Currency.USD
     assert expense.commerce == "APPLE.COM BILL CUPERTINO US"
@@ -78,7 +84,8 @@ ambiente mejor, prefiera los medios digitales al papel impreso.
 
     msg_clp_num = Message(remitent, subject, time_obj, clp_expense_with_number)
 
-    expense = Expense.get_expense(msg_clp_num)
+    expense = parser.get_expense(msg_clp_num)
+    assert isinstance(expense, Expense)
     assert expense.value == 22737.0
     assert expense.currency == Currency.CLP
     assert expense.commerce == "LOCAL 6496-12-12"
@@ -87,7 +94,8 @@ ambiente mejor, prefiera los medios digitales al papel impreso.
 
     msg_clp = Message(remitent, subject, time_obj, clp_expense)
 
-    expense = Expense.get_expense(msg_clp)
+    expense = parser.get_expense(msg_clp)
+    assert isinstance(expense, Expense)
     assert expense.value == 38844.0
     assert expense.commerce == "STA ISABEL JM CAR"
     assert expense.currency == Currency.CLP
@@ -96,6 +104,8 @@ ambiente mejor, prefiera los medios digitales al papel impreso.
 
 
 def test_parse_data_giro():
+    parser = EmailParser(BANK)
+    parser.build_parser()
     data = """
 Banco de Chile Richard Hector Alexander Pe a Bonifaz: Te informamos que se ha realizado
 un giro en Cajero por $20.000 con cargo a Cuenta ****7204 el 24/08/2025 11:54. Revisa
@@ -115,15 +125,19 @@ www‎.‍cmfchile‎.‍cl ©. Todos los derechos reservados. Comprometidos por
 ambiente mejor, prefiera los medios digitales al papel impreso.
             """.replace("\n", "")
 
+    subject = "Giro con targeta de débito"
     msg = Message(remitent, subject, time_obj, data)
-    expense = Expense.get_expense(msg)
+    expense = parser.get_expense(msg)
+    assert isinstance(expense, Expense)
     assert expense.value == 20000.0
     assert expense.currency == Currency.CLP
-    assert expense.category == ExpenseCategory.GENERAL
+    assert expense.category == ExpenseCategory.ATM_WITHDRAWAL
     assert expense.date == time_obj
 
 
 def test_parse_transference():
+    parser = EmailParser(BANK)
+    parser.build_parser()
     data = """
 Banco de Chile | Mi Banco Comprobante de Transferencia a terceros Estimado(a): Richard
 Hector Alexander Peña Te informamos que has realizado una Transferencia a terceros en
@@ -148,9 +162,11 @@ derechos reservados. Comprometidos por un medio ambiente mejor, prefiera los med
 digitales al papel impreso.
         """.replace("\n", "")
 
+    subject = "Transferencia a terceros"
     msg = Message(remitent, subject, time_obj, data)
 
-    transference = Transference.get_transference(msg)
+    transference = parser.get_transference(msg)
+    assert isinstance(transference, Transference)
     assert transference.value == 6000.0
     assert transference.currency == Currency.CLP
     assert transference.recipient == "Some Person"
@@ -159,6 +175,8 @@ digitales al papel impreso.
 
 
 def test_parse_app_transference():
+    parser = EmailParser(BANK)
+    parser.build_parser()
     data = """
 Mailing Estimado(a) Richard Hector Alexander Peña Bonifaz Le informamos que usted ha
 efectuado una transferencia de fondos a Medio De Pago Fintoc, el día 08 de septiembre de
@@ -179,9 +197,11 @@ Hasta un buscador puede no ser seguro. Infórmese sobre la garantía estatal de 
 depósitos en su banco o en www.sbif.cl © 2019 Banco de Chile. Todos los Derechos Reservados.
         """.replace("\n", "")
 
+    subject = "Transferencia a terceros"
     msg = Message(remitent, subject, time_obj, data)
 
-    transference = Transference.get_transference(msg)
+    transference = parser.get_transference(msg)
+    assert isinstance(transference, Transference)
     assert transference.value == 10000.0
     assert transference.currency == Currency.CLP
     assert transference.recipient == "Medio De Pago Fintoc"

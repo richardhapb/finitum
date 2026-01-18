@@ -133,12 +133,6 @@ class Transaction:
 
     # Amount
 
-    @classmethod
-    def _get_amount_str(cls, content: str) -> str:
-        amounts = re.findall(cls.AMOUNT_REGEX, content)
-        amount = amounts[0] if amounts else ""
-        return amount
-
     @staticmethod
     def _match_category_by_text(text: str) -> ExpenseCategory:
         """

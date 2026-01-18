@@ -1,7 +1,7 @@
 import os
 from collections.abc import Generator
 
-from sqlalchemy import create_engine, event, text
+from sqlalchemy import create_engine, event, text, Engine
 from sqlalchemy.engine import make_url
 from sqlmodel import Session
 
@@ -43,7 +43,7 @@ def _ensure_db_utf8(conn_str: str, db_locale: str = "en_US.UTF-8") -> None:
         conn.exec_driver_sql(create_sql)
 
 
-def _build_engine(conn_str: str) -> None:
+def _build_engine(conn_str: str) -> Engine:
     """
     Build the app engine and force client_encoding UTF8 on connect
     (works with psycopg2 and psycopg3).
@@ -72,15 +72,24 @@ def _build_engine(conn_str: str) -> None:
     return engine
 
 
-CONN_STR = os.environ.get("CONN_STR")
-if not CONN_STR:
-    raise RuntimeError("Set CONN_STR env var, e.g. postgresql+psycopg://user:pass@localhost/finitum")
+engine: Engine | None = None
 
-# Ensure DB exists and is UTF-8
-_ensure_db_utf8(CONN_STR, db_locale=os.environ.get("DB_LOCALE", "en_US.UTF-8"))
 
-# App engine
-engine = _build_engine(CONN_STR)
+def get_engine() -> Engine:
+    global engine  # noqa: PLW0603
+    if engine:
+        return engine
+
+    conn_str = os.environ.get("CONN_STR")
+    if not conn_str:
+        raise RuntimeError("Set CONN_STR env var, e.g. postgresql+psycopg://user:pass@localhost/finitum")
+
+    # Ensure DB exists and is UTF-8
+    _ensure_db_utf8(conn_str, db_locale=os.environ.get("DB_LOCALE", "en_US.UTF-8"))
+
+    # App engine
+    engine = _build_engine(conn_str)
+    return engine
 
 
 def get_session() -> Generator[Session]:

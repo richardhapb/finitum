@@ -86,6 +86,7 @@ ignore = [
     "ANN204", # Missing type annotation for especial method return
     "ANN002", # Missing type annotation for function *args
     "ANN003", # Missing type annotation for function **kwargs
+    "ANN401", # Use Any
 
     # LOGGING
     "G201", # Use error instead of exception
