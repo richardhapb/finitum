@@ -38,7 +38,7 @@ def _b64url_decode(s: str) -> bytes:
 
 def remove_html_tags(html_doc: str) -> str:
     soup = BeautifulSoup(html_doc, "html.parser")
-    return " ".join(soup.get_text().strip().split())
+    return soup.get_text()
 
 
 def _parse_date(header_value: str | None) -> datetime:

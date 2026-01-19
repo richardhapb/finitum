@@ -43,7 +43,7 @@ def get_user_messages(user_id: int) -> None:
                 credentials_obj,
             )
 
-        bank = "bancoDeChile"
+        bank = "banco_chile"
         parser = EmailParser(bank)
         try:
             parser.build_parser()

@@ -20,6 +20,7 @@ dependencies = [
     "pyjwt>=2.10.1",
     "pyright>=1.1.405",
     "pytest>=8.4.2",
+    "pytest-parametrize>=1.5.0",
     "pytz>=2025.2",
     "redis>=6.4.0",
     "requests>=2.32.5",
@@ -141,6 +142,7 @@ ignore = [
     "PLC2701", # import private members
     "ANN201",  # The return type is not necessary in tests; it is always None
     "PLR2004", # Magic numbers
+    "ANN001",  # Argument type
 ]
 
 # McCabe complexity

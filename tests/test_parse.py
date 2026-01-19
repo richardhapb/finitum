@@ -1,3 +1,4 @@
+import pytest
 from datetime import datetime
 from parsers.parser import EmailParser
 from parsers.base import Currency, ExpenseCategory
@@ -8,72 +9,18 @@ from parsers.expense import Expense
 remitent = "test@test.com"
 time_obj = datetime(year=2025, month=9, day=12, hour=12, minute=30)
 
-BANK = "bancoDeChile"
+BANK = "banco_chile"
 
 
-def test_amount_data_cc():
+def test_amount_data_usd():
     parser = EmailParser(BANK)
     parser.build_parser()
-    usd_expense = """
-Banco de Chile Richard Hector Alexander Pe a Bonifaz: Te informamos que se ha realizado
-una compra por US$20,88 con Tarjeta de Crédito ****2662 en APPLE.COM BILL CUPERTINO US
-el 26/07/2025 20:23. Revisa Saldos y Movimientos en App Mi Banco o Banco en Línea. Más
-información 60‍0 63‍7 37‍37. Sigue estos consejos para evitar fraudes Nunca te
-llamaremos solicitando tus claves o información personal. Nunca hagas click en links ni
-descargues archivos adjuntos de correos sospechosos. Ingresa a la página del Banco
-digitando la dirección en la barra de tu navegador. Realiza todo de forma ágil y simple
-usando nuestras aplicaciones* Mi Banco ‍Mi Pass Mi Inversión Encuéntranos
-bancochile‎.‍cl @‍AyudaBancoChile @‍Bancodechile Banca Telefónica 60‍0 63‍7
-37‍37 * Por seguridad, descarga las aplicaciones solo en las tiendas Google Play y App
-Store. Las Apps no están disponibles para teléfonos desbloqueados (Jailbreak o
-Rooteado). Este mensaje ha sido enviado a 'richard.penab@gmail.com' con información
-exclusiva para clientes del banco. Banco de Chile. Casa Matriz: Ahumada 251, Santiago de
-Chile. Infórmese sobre la garantía estatal de los depósitos en su banco o en
-www‎.‍cmfchile‎.‍cl ©. Todos los derechos reservados. Comprometidos por un medio
-ambiente mejor, prefiera los medios digitales al papel impreso.
-        """.replace("\n", "")
+    with open("tests/banks/banco_chile/purchase_usd.txt", encoding="utf-8") as f:
+        usd_expense = f.read()
+    with open("tests/banks/banco_chile/purchase_subject.txt", encoding="utf-8") as f:
+        subject = f.read()
 
-    clp_expense = """
-Banco de Chile Richard Hector Alexander Pe a Bonifaz: Te informamos que se ha realizado
-una compra por $38.844 con cargo a Cuenta ****7204 en STA ISABEL JM CAR el 17/09/2025
-08:58. Revisa Saldos y Movimientos en App Mi Banco o Banco en Línea. Más información
-60‍0 63‍7 37‍37. Sigue estos consejos para evitar fraudes Nunca te llamaremos
-solicitando tus claves o información personal. Nunca hagas click en links ni descargues
-archivos adjuntos de correos sospechosos. Ingresa a la página del Banco digitando la
-dirección en la barra de tu navegador. Realiza todo de forma ágil y simple usando
-nuestras aplicaciones* Mi Banco ‍Mi Pass Mi Inversión Encuéntranos
-bancochile‎.‍cl @‍AyudaBancoChile @‍Bancodechile Banca Telefónica 60‍0 63‍7
-37‍37 * Por seguridad, descarga las aplicaciones solo en las tiendas Google Play y App
-Store. Las Apps no están disponibles para teléfonos desbloqueados (Jailbreak o
-Rooteado). Este mensaje ha sido enviado a 'richard.penab@gmail.com' con información
-exclusiva para clientes del banco. Banco de Chile. Casa Matriz: Ahumada 251, Santiago de
-Chile. Infórmese sobre la garantía estatal de los depósitos en su banco o en
-www‎.‍cmfchile‎.‍cl ©. Todos los derechos reservados. Comprometidos por un medio
-ambiente mejor, prefiera los medios digitales al papel impreso.
-        """.replace("\n", "")
-
-    clp_expense_with_number = """
-Banco de Chile Richard Hector Alexander Pe a Bonifaz: Te informamos que se ha realizado
-una compra por $22.737 con cargo a Cuenta ****7204 en LOCAL 6496-12-12 el 03/09/2025 17:03.
-Revisa Saldos y Movimientos en App Mi Banco o Banco en Línea. Más información 60‍0
-63‍7 37‍37. Sigue estos consejos para evitar fraudes Nunca te llamaremos solicitando
-tus claves o información personal. Nunca hagas click en links ni descargues archivos
-adjuntos de correos sospechosos. Ingresa a la página del Banco digitando la dirección
-en la barra de tu navegador. Realiza todo de forma ágil y simple usando nuestras
-aplicaciones* Mi Banco ‍Mi Pass Mi Inversión Encuéntranos bancochile‎.‍cl
-@‍AyudaBancoChile @‍Bancodechile Banca Telefónica 60‍0 63‍7 37‍37 * Por
-seguridad, descarga las aplicaciones solo en las tiendas Google Play y App Store. Las
-Apps no están disponibles para teléfonos desbloqueados (Jailbreak o Rooteado). Este
-mensaje ha sido enviado a 'richard.penab@gmail.com' con información exclusiva para
-clientes del banco. Banco de Chile. Casa Matriz: Ahumada 251, Santiago de Chile.
-Infórmese sobre la garantía estatal de los depósitos en su banco o en
-www‎.‍cmfchile‎.‍cl ©. Todos los derechos reservados. Comprometidos por un medio
-ambiente mejor, prefiera los medios digitales al papel impreso.
-        """.replace("\n", "")
-
-    subject = "Cargo en cuenta"
     msg_usd = Message(remitent, subject, time_obj, usd_expense)
-
     expense = parser.get_expense(msg_usd)
     assert isinstance(expense, Expense)
     assert expense.value == 20.88
@@ -81,6 +28,41 @@ ambiente mejor, prefiera los medios digitales al papel impreso.
     assert expense.commerce == "APPLE.COM BILL CUPERTINO US"
     assert expense.category == ExpenseCategory.ONLINE, f"Invalid category for {expense.commerce}"
     assert expense.date == time_obj
+
+
+@pytest.mark.parametrize(
+    ("bank", "amount", "commerce", "cat"),
+    [
+        ("banco_chile", 38844, "STA ISABEL JM CAR", ExpenseCategory.FOOD),
+        ("santander", 68885, "Entel pcs", ExpenseCategory.SERVICES),
+    ],
+)
+def test_amount_data_clp(bank, amount, commerce, cat):
+    parser = EmailParser(bank)
+    parser.build_parser()
+    with open(f"tests/banks/{bank}/purchase_clp.txt", encoding="utf-8") as f:
+        clp_expense = f.read()
+    with open(f"tests/banks/{bank}/purchase_subject.txt", encoding="utf-8") as f:
+        subject = f.read()
+
+    msg_clp = Message(remitent, subject, time_obj, clp_expense)
+
+    expense = parser.get_expense(msg_clp)
+    assert isinstance(expense, Expense)
+    assert expense.value == amount
+    assert expense.commerce == commerce
+    assert expense.currency == Currency.CLP
+    assert expense.category == cat, f"Invalid category for {expense.commerce}"
+    assert expense.date == time_obj
+
+
+def test_amount_data_clp_with_number():
+    parser = EmailParser(BANK)
+    parser.build_parser()
+    with open("tests/banks/banco_chile/purchase_clp_number.txt", encoding="utf-8") as f:
+        clp_expense_with_number = f.read()
+    with open("tests/banks/banco_chile/purchase_subject.txt", encoding="utf-8") as f:
+        subject = f.read()
 
     msg_clp_num = Message(remitent, subject, time_obj, clp_expense_with_number)
 
@@ -92,40 +74,15 @@ ambiente mejor, prefiera los medios digitales al papel impreso.
     assert expense.category == ExpenseCategory.GENERAL, f"Invalid category for {expense.commerce}"
     assert expense.date == time_obj
 
-    msg_clp = Message(remitent, subject, time_obj, clp_expense)
-
-    expense = parser.get_expense(msg_clp)
-    assert isinstance(expense, Expense)
-    assert expense.value == 38844.0
-    assert expense.commerce == "STA ISABEL JM CAR"
-    assert expense.currency == Currency.CLP
-    assert expense.category == ExpenseCategory.FOOD, f"Invalid category for {expense.commerce}"
-    assert expense.date == time_obj
-
 
 def test_parse_data_giro():
     parser = EmailParser(BANK)
     parser.build_parser()
-    data = """
-Banco de Chile Richard Hector Alexander Pe a Bonifaz: Te informamos que se ha realizado
-un giro en Cajero por $20.000 con cargo a Cuenta ****7204 el 24/08/2025 11:54. Revisa
-Saldos y Movimientos en App Mi Banco o Banco en Línea. Más información 60‍0 63‍7
-37‍37. Sigue estos consejos para evitar fraudes Nunca te llamaremos solicitando tus
-claves o información personal. Nunca hagas click en links ni descargues archivos
-adjuntos de correos sospechosos. Ingresa a la página del Banco digitando la dirección
-en la barra de tu navegador. Realiza todo de forma ágil y simple usando nuestras
-aplicaciones* Mi Banco ‍Mi Pass Mi Inversión Encuéntranos bancochile‎.‍cl
-@‍AyudaBancoChile @‍Bancodechile Banca Telefónica 60‍0 63‍7 37‍37 * Por
-seguridad, descarga las aplicaciones solo en las tiendas Google Play y App Store. Las
-Apps no están disponibles para teléfonos desbloqueados (Jailbreak o Rooteado). Este
-mensaje ha sido enviado a 'richard.penab@gmail.com' con información exclusiva para
-clientes del banco. Banco de Chile. Casa Matriz: Ahumada 251, Santiago de Chile.
-Infórmese sobre la garantía estatal de los depósitos en su banco o en
-www‎.‍cmfchile‎.‍cl ©. Todos los derechos reservados. Comprometidos por un medio
-ambiente mejor, prefiera los medios digitales al papel impreso.
-            """.replace("\n", "")
+    with open("tests/banks/banco_chile/withdrawal.txt", encoding="utf-8") as f:
+        data = f.read()
+    with open("tests/banks/banco_chile/withdrawal_subject.txt", encoding="utf-8") as f:
+        subject = f.read()
 
-    subject = "Giro con targeta de débito"
     msg = Message(remitent, subject, time_obj, data)
     expense = parser.get_expense(msg)
     assert isinstance(expense, Expense)
@@ -135,41 +92,28 @@ ambiente mejor, prefiera los medios digitales al papel impreso.
     assert expense.date == time_obj
 
 
-def test_parse_transference():
-    parser = EmailParser(BANK)
+@pytest.mark.parametrize(
+    ("bank", "amount", "recipient"),
+    [
+        ("banco_chile", 6000, "Some Person"),
+        ("santander", 53000, "JORGE IGNACIO CASTRO VELIZ"),
+    ],
+)
+def test_parse_transference(bank, amount, recipient):
+    parser = EmailParser(bank)
     parser.build_parser()
-    data = """
-Banco de Chile | Mi Banco Comprobante de Transferencia a terceros Estimado(a): Richard
-Hector Alexander Peña Te informamos que has realizado una Transferencia a terceros en
-forma exitosa con el siguiente detalle: Origen Tipo de Cuenta Cuenta Corriente Nº de
-Cuenta 00-034-01672-04 Destino Nombre y Apellido Some Person Rut 92019212-3 Tipo de
-Cuenta Cuenta Vista Nº de Cuenta 00-002-31471-69 Banco Banco Estado Email Monto $6.000
-Mensaje Fecha y Hora: lunes 15 de septiembre de 2025 23:21 Transacción
-TEFMBCO2509152321121206234900 Si tienes dudas o consultas, puedes llamar a nuestra Banca
-Telefónica o también, dirigirte a cualquiera de nuestras sucursales. bancochile.cl
-@AyudaBancoChile @bancodechile 600 637 37 37 Banca Telefónica ES CLAVE NO DAR TUS CLAVES
-Por seguridad, este cuerpo no contiene enlaces al sítio Web de Banco de Chile Importante
-• Es clave no dar tu claves. • Nunca entregar claves, información financiera o datos
-personales a nadie. • Ingresar a la página del Banco digitando la dirección en la
-barra del navegador. • Nunca descargar archivos adjuntos de remitentes desconocidos.
-• Solo seguir nuestras cuentas oficiales certificadas en redes sociales (fijarse en el
-check junto al nombre de la cuenta). • Mantener actualizado el antivirus. • En caso
-de detectar actividad sospechosa, contactarnos a través de nuestros canales oficiales de
-ayuda. • Información de cómo evitar ser víctima de un fraude en nuestra página web.
-Banco de Chile. Casa Matriz: Ahumada 251, Santiago de Chile. Infórmese sobre la
-garantía estatal de los depósitos en su banco o en www.cmfchile.cl. © 2025. Todos los
-derechos reservados. Comprometidos por un medio ambiente mejor, prefiera los medios
-digitales al papel impreso.
-        """.replace("\n", "")
+    with open(f"tests/banks/{bank}/transference.txt", encoding="utf-8") as f:
+        data = f.read()
+    with open(f"tests/banks/{bank}/transference_subject.txt", encoding="utf-8") as f:
+        subject = f.read()
 
-    subject = "Transferencia a terceros"
     msg = Message(remitent, subject, time_obj, data)
 
     transference = parser.get_transference(msg)
     assert isinstance(transference, Transference)
-    assert transference.value == 6000.0
+    assert transference.value == amount
     assert transference.currency == Currency.CLP
-    assert transference.recipient == "Some Person"
+    assert transference.recipient == recipient
     assert transference.category == ExpenseCategory.GENERAL
     assert transference.date == time_obj
 
@@ -177,27 +121,11 @@ digitales al papel impreso.
 def test_parse_app_transference():
     parser = EmailParser(BANK)
     parser.build_parser()
-    data = """
-Mailing Estimado(a) Richard Hector Alexander Peña Bonifaz Le informamos que usted ha
-efectuado una transferencia de fondos a Medio De Pago Fintoc, el día 08 de septiembre de
-2025, desde su Cuenta Corriente 340167204. El detalle puede revisarlo a continuación
-DESDE HOY PUEDES AUTORIZAR TUS TRANSFERENCIAS EN TU CELULAR CON LA APLICACION MI PASS EN
-VEZ DE DIGIPASS Y AHORRA TIEMPO.DESCARGA MI PASS DESDE GOOGLE PLAY O APPLE STORE. Datos
-del Destinatario Nombre Medio De Pago Fintoc Rut 77.143.385-5 Cuenta 922358017 Banco
-Banco Security Mail transferencias@fintoc.com Datos de la Transferencia Fecha 08/09/2025
-Cuenta 340167204 Monto $10.000 ID TEF_IPE2509080811121093527740 Mensaje
-1FIN-pi_32PktX3C0lCZPSdGoAvnaro8MKA Por tu seguridad, este mensaje no tiene enlace al
-sitio web de Banco de Chile, además: Nunca te pediremos ingresar a un sitio web desde un
-correo Nunca te pediremos ingresar tu clave Digipass antes del ingreso a tu Banco en
-Línea, ni al inicio de tu sesión Nunca te llamaremos ni pediremos por SMS tus claves,
-datos personales o tu clave Digipass Nunca hagas click en un link desde un correo porque
-puede llevarte a un sitio falso Verifica siempre que la URL del Banco en Línea comience
-con https://(en vez de http://) No hagas click en un link de resultado de búsqueda.
-Hasta un buscador puede no ser seguro. Infórmese sobre la garantía estatal de los
-depósitos en su banco o en www.sbif.cl © 2019 Banco de Chile. Todos los Derechos Reservados.
-        """.replace("\n", "")
+    with open("tests/banks/banco_chile/transference_app.txt", encoding="utf-8") as f:
+        data = f.read()
+    with open("tests/banks/banco_chile/transference_subject.txt", encoding="utf-8") as f:
+        subject = f.read()
 
-    subject = "Transferencia a terceros"
     msg = Message(remitent, subject, time_obj, data)
 
     transference = parser.get_transference(msg)

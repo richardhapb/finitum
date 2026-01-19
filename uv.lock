@@ -531,6 +531,7 @@ dependencies = [
     { name = "pyjwt" },
     { name = "pyright" },
     { name = "pytest" },
+    { name = "pytest-parametrize" },
     { name = "pytz" },
     { name = "redis" },
     { name = "requests" },
@@ -560,6 +561,7 @@ requires-dist = [
     { name = "pyjwt", specifier = ">=2.10.1" },
     { name = "pyright", specifier = ">=1.1.405" },
     { name = "pytest", specifier = ">=8.4.2" },
+    { name = "pytest-parametrize", specifier = ">=1.5.0" },
     { name = "pytz", specifier = ">=2025.2" },
     { name = "redis", specifier = ">=6.4.0" },
     { name = "requests", specifier = ">=2.32.5" },
@@ -1374,6 +1376,18 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/a3/5c/00a0e072241553e1a7496d638deababa67c5058571567b92a7eaa258397c/pytest-8.4.2.tar.gz", hash = "sha256:86c0d0b93306b961d58d62a4db4879f27fe25513d4b969df351abdddb3c30e01", size = 1519618, upload-time = "2025-09-04T14:34:22.711Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/a8/a4/20da314d277121d6534b3a980b29035dcd51e6744bd79075a6ce8fa4eb8d/pytest-8.4.2-py3-none-any.whl", hash = "sha256:872f880de3fc3a5bdc88a11b39c9710c3497a547cfa9320bc3c5e62fbf272e79", size = 365750, upload-time = "2025-09-04T14:34:20.226Z" },
+]
+
+[[package]]
+name = "pytest-parametrize"
+version = "1.5.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pytest" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/be/84/fb597e2a42c34fd09445c2894ac3625a6d2187b832cd1cb5ccfc817f2a46/pytest_parametrize-1.5.0.tar.gz", hash = "sha256:508bd6022b378e99b5bb7bb2c9bb3b17c966ba222880d80aa2c2198153d1cbed", size = 3809, upload-time = "2025-09-25T20:26:55.797Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/97/51/cc3afaa11c3fd5c8bfc2e43c01a16c63e594a5a168c442763986dac21bec/pytest_parametrize-1.5.0-py3-none-any.whl", hash = "sha256:75639f6e12050bc247b56a0a2f437820034a80bf6f11bc32f72f73697ae1f24e", size = 4551, upload-time = "2025-09-25T20:26:55.032Z" },
 ]
 
 [[package]]
