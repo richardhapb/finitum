@@ -55,7 +55,7 @@ def get_user_messages(user_id: int) -> None:
 
         now = datetime.now(TZ)
         last = normalize_date_from(user.last_update) or now
-        query = f"is:unread after:{last.strftime('%Y/%m/%d')}"
+        query = f"after:{last.strftime('%Y/%m/%d')}"
 
         user.last_update = now
 

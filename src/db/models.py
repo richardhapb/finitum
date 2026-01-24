@@ -18,7 +18,8 @@ logger = get_logger()
 
 
 def minimum_date_factory() -> datetime:
-    return datetime(year=2025, month=1, day=1)
+    """Default to now - new users won't fetch historical emails."""
+    return datetime.now()
 
 
 class User(SQLModel, table=True):
@@ -107,6 +108,17 @@ class Transference(SQLModel, table=True):
     category: ExpenseCategory = Field(default=ExpenseCategory.GENERAL)
     date: datetime = Field(default_factory=datetime.now)
     description: str | None = Field(default=None)
+
+
+class ExpenseCreate(SQLModel):
+    """Model for creating a new expense via API."""
+
+    commerce: str
+    amount: float
+    currency: Currency = Currency.CLP
+    category: ExpenseCategory = ExpenseCategory.GENERAL
+    date: datetime | None = None
+    description: str | None = None
 
 
 class UserCreate(SQLModel):

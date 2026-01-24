@@ -1,7 +1,9 @@
-from celery.schedules import crontab
-from celery import Celery
-from kombu import Queue, Exchange
 import os
+
+from celery import Celery
+from celery.schedules import crontab
+from kombu import Exchange, Queue
+
 from utils.config import APP_NAME, REDIS_URL
 
 celery = Celery(
@@ -43,7 +45,7 @@ celery.conf.update(
 celery.conf.beat_schedule = {
     "fetch-all-users-messages": {
         "task": "tasks.email.get_messages",
-        "schedule": crontab(hour="8,20"),
+        "schedule": crontab(minute=0, hour='8,20'),
         "options": {
             "queue": "periodic",
             "routing_key": "periodic",

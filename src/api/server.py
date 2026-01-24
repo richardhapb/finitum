@@ -2,6 +2,7 @@ import jwt
 import os
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from datetime import datetime
 from typing import TYPE_CHECKING, cast
 
 import redis
@@ -14,6 +15,7 @@ from starlette.middleware.cors import CORSMiddleware
 from api.jwt import Token, get_current_user
 from db.models import (
     Expense as DBExpense,
+    ExpenseCreate,
 )
 from db.models import (
     User,
@@ -53,11 +55,13 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# CORS: In DEBUG mode allow all origins for mobile dev, otherwise use explicit list
+_default_origins = "http://localhost:9090 http://localhost:8081"
+_allowed_origins = ["*"] if DEBUG else os.getenv("ALLOWED_ORIGINS", _default_origins).split()
+
 app.add_middleware(
     cast("_MiddlewareFactory", CORSMiddleware),
-    allow_origins=os.getenv(
-        "ALLOWED_ORIGINS", "http://0.0.0.0:9090 http://localhost:9090 http://127.0.0.1:9090"
-    ).split(),
+    allow_origins=_allowed_origins,
     allow_credentials=True,
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization"],
@@ -162,12 +166,55 @@ def signin(response: Response, user_data: UserLogin, session: Session = Depends(
     }
 
 
+@app.get("/me")
+def get_current_user_info(
+    current_user: User = Depends(get_current_user),
+) -> JSONResponse:
+    """Get current user info including Google credentials status."""
+    return JSONResponse(
+        content={
+            "id": current_user.id,
+            "username": current_user.username,
+            "email": current_user.email,
+            "last_update": current_user.last_update.isoformat(),
+            "has_google_credentials": current_user.google_credentials is not None,
+        }
+    )
+
+
 @app.get("/expenses")
 def get_expenses(
-    _current_user: User = Depends(get_current_user), session: Session = Depends(get_session)
+    current_user: User = Depends(get_current_user), session: Session = Depends(get_session)
 ) -> JSONResponse:
-    expenses = session.exec(select(DBExpense)).all()
-    return JSONResponse(content={"expenses": [expense.model_dump() for expense in expenses]})
+    """Get all expenses for the current user."""
+    expenses = session.exec(select(DBExpense).where(DBExpense.user_id == current_user.id)).all()
+    # Return array directly for easier frontend consumption
+    return JSONResponse(content=[expense.model_dump(mode="json") for expense in expenses])
+
+
+@app.post("/expenses", status_code=status.HTTP_201_CREATED)
+def create_expense(
+    expense_data: ExpenseCreate,
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+) -> JSONResponse:
+    """Create a new expense for the current user."""
+    new_expense = DBExpense(
+        user_id=current_user.id,
+        commerce=expense_data.commerce,
+        amount=expense_data.amount,
+        currency=expense_data.currency,
+        category=expense_data.category,
+        date=expense_data.date if expense_data.date else datetime.now(),
+        description=expense_data.description,
+    )
+    session.add(new_expense)
+    session.commit()
+    session.refresh(new_expense)
+    return JSONResponse(
+        status_code=status.HTTP_201_CREATED,
+        content=new_expense.model_dump(mode="json"),
+    )
 
 
 @app.get("/google-authorize")
