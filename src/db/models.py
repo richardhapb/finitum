@@ -226,7 +226,6 @@ def rebuild_credentials(credentials: dict[str, Any] | UserGoogleCredential) -> C
     client_secret = getattr(credentials, "client_secret", None) or os.environ.get("GOOGLE_SECRET")
     refresh_token = getattr(credentials, "refresh_token", None)
     token = getattr(credentials, "token", None)
-    # If your model exposes methods, handle both shapes:
     sc_attr = getattr(credentials, "scopes", None)
     scopes = _to_scopes(sc_attr or getattr(credentials, "granted_scopes", None))
     id_token = getattr(credentials, "id_token", None)
