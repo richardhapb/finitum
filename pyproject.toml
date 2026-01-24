@@ -143,6 +143,7 @@ ignore = [
     "ANN201",  # The return type is not necessary in tests; it is always None
     "PLR2004", # Magic numbers
     "ANN001",  # Argument type
+    "S105",    # Hardcoded password
 ]
 
 # McCabe complexity

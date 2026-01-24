@@ -1,10 +1,11 @@
 {
     "banco_chile": {
+        "remitents": ["enviodigital@bancochile.cl", "serviciodetransferencias@bancochile.cl"],
         "subject": {
             "exclusions": [
                 "entre mis cuentas"
             ],
-            "purchase": "cargo en cuenta",
+            "purchase": "(?:cargo en cuenta|compra con tarjeta)",
             "withdrawal": "giro",
             "transference": "transferencia"
         },
@@ -14,10 +15,12 @@
             "amountWithdrawal": "(?:giro en Cajero)\\s*por\\s*(\\S+)",
             "date": "\\d{1,2}/\\d{1,2}/\\d{4}(?:\\s+\\d{1,2}:\\d{2})?",
             "commerce": "compra\\s+por\\s+\\S+\\s*con\\s*\\D+\\d+\\s*en\\s*(.+)\\s*el\\s*\\d{1,2}/\\d{1,2}/\\d{4}(?:\\s+\\d{1,2}:\\d{2})?",
-            "transferenceRecipient": "(?:Nombre y Apellido |Nombre )(.*) Rut"
+            "transferenceRecipient": "(?:Nombre y Apellido |Nombre )(.*) Rut",
+            "transferenceMatches": "(?:has realizado|ha efectuado)"
         }
     },
     "santander": {
+        "remitents": ["mensajeria@santander.cl"],
         "subject": {
             "exclusions": [],
             "purchase": "comprobante pago",
@@ -30,7 +33,8 @@
             "amountWithdrawal": "Monto\\s+>\\s+\\$([\\d.]+)",
             "date": "\\d{1,2}[-/]\\d{1,2}[-/]\\d{4}",
             "commerce": "Compa[^>]+>\\s*([A-Za-z0-9\\s]+?)\\s*=09",
-            "transferenceRecipient": "Datos de destino[^>]+>\\s*Nombre\\s+>\\s+([A-Z\\s]+?)\\s+>\\s+RUT"
+            "transferenceRecipient": "Datos de destino[^>]+>\\s*Nombre\\s+>\\s+([A-Z\\s]+?)\\s+>\\s+RUT",
+            "transferenceMatches": ""
         }
     }
 }

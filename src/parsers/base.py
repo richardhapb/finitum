@@ -1,5 +1,4 @@
 import json
-import re
 import unicodedata
 from datetime import datetime
 from enum import Enum

@@ -29,6 +29,9 @@ class BankNotFoundError(Exception):
 
 
 class BankPatterns:
+    # recipients
+    remitents: list[str]
+
     # subject
     exclusions: list[str]
     withdrawal_pattern: str
@@ -42,6 +45,7 @@ class BankPatterns:
     amount_transference_regex: str
     date_regex: str
     transference_recipient_regex: str
+    transference_matches_regex: str
 
     @classmethod
     def from_json(cls, filename: str, bank: str) -> Self:
@@ -68,6 +72,7 @@ class BankPatterns:
 
         obj = cls()
         try:
+            obj.remitents = bank_data.get("remitents", [])
             subject = bank_data["subject"]
             obj.exclusions = subject["exclusions"]
             obj.withdrawal_pattern = subject["withdrawal"]
@@ -81,6 +86,7 @@ class BankPatterns:
             obj.commerce_regex = body["commerce"]
             obj.date_regex = body["date"]
             obj.transference_recipient_regex = body["transferenceRecipient"]
+            obj.transference_matches_regex = body.get("transferenceMatches", "")
         except IndexError as e:
             logger.exception("pattern not found in bank json")
             raise BankNotFoundError from e
@@ -116,11 +122,11 @@ class EmailParser:
             if exclusion in subject:
                 return None
 
-        if self.bank_patterns.purchase_pattern in subject:
+        if re.search(self.bank_patterns.purchase_pattern, subject, re.IGNORECASE):
             return ExpenseType.PURCHASE
-        if self.bank_patterns.withdrawal_pattern in subject:
+        if re.search(self.bank_patterns.withdrawal_pattern, subject, re.IGNORECASE):
             return ExpenseType.WITHDRAWAL
-        if self.bank_patterns.transference_pattern in subject:
+        if re.search(self.bank_patterns.transference_pattern, subject, re.IGNORECASE):
             return ExpenseType.TRANSFERENCE
 
         return None
@@ -153,7 +159,32 @@ class EmailParser:
         recipient = recipients[0] if recipients else ""
         return recipient
 
+    def _matches_transference_body(self, msg: Message) -> bool:
+        """Check if the message body matches the transference pattern."""
+        if not self.bank_patterns.transference_matches_regex:
+            return True
+        return bool(re.search(self.bank_patterns.transference_matches_regex, msg.body, re.IGNORECASE))
+
+    @staticmethod
+    def _extract_email_from_remitent(remitent: str) -> str:
+        """Extract email address from formats like 'Name <email@domain.com>' or plain email."""
+        match = re.search(r"<([^>]+)>", remitent)
+        if match:
+            return match.group(1).lower()
+        return remitent.lower().strip()
+
+    def _is_expected_remitent(self, msg: Message) -> bool:
+        if not self.bank_patterns.remitents:
+            return True
+
+        extracted_email = self._extract_email_from_remitent(msg.remitent)
+        return any(extracted_email == r.lower() for r in self.bank_patterns.remitents)
+
     def get_expense(self, msg: Message) -> Expense | None:
+        if not self._is_expected_remitent(msg):
+            logger.debug("Not expected remitent: %s", msg.remitent)
+            return None
+
         expense_type = self._classify_message(msg)
         if not expense_type:
             return None
@@ -169,8 +200,15 @@ class EmailParser:
         return Expense(amount_str, commerce_str, msg.date)
 
     def get_transference(self, msg: Message) -> Transference | None:
+        if not self._is_expected_remitent(msg):
+            logger.debug("Not expected remitent: %s", msg.remitent)
+            return None
         expense_type = self._classify_message(msg)
         if not expense_type:
+            return None
+
+        if not self._matches_transference_body(msg):
+            logger.debug("Message body does not match transference pattern")
             return None
 
         amount_str = self._get_amount_str(msg, expense_type)

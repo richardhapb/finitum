@@ -34,21 +34,21 @@ def get_user_messages(user_id: int) -> None:
         credentials_query = select(UserGoogleCredential).where(UserGoogleCredential.user == user)
         credentials_obj = session.exec(credentials_query).one() if user else None
 
-        if credentials_obj:
-            credentials = rebuild_credentials(credentials_obj)
-        else:
+        if not credentials_obj:
             logger.error(
                 "Missed user/credentials, user=%s, credentials=%s",
                 user.username if user else None,
                 credentials_obj,
             )
+            return
 
-        bank = "banco_chile"
-        parser = EmailParser(bank)
+        credentials = rebuild_credentials(credentials_obj)
+
+        parser = EmailParser(user.bank)
         try:
             parser.build_parser()
         except BankNotFoundError:
-            logger.exception("Cannot parse the bank")
+            logger.exception("Cannot parse the bank: %s", user.bank)
             return
 
         em: EmailManager = EmailManager(credentials)

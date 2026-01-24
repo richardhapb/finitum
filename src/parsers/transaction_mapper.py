@@ -28,4 +28,3 @@ def transference_to_db_model(transference: Transference) -> DBTransference:
         date=transference.date,
         description="Extracted from email",
     )
-

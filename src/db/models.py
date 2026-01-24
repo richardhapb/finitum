@@ -27,6 +27,7 @@ class User(SQLModel, table=True):
     username: str = Field(unique=True, index=True)
     password: str | None = Field(default=None)
     email: EmailStr = Field(unique=True, index=True)
+    bank: str = Field(default="banco_chile")
     last_update: datetime = Field(default_factory=minimum_date_factory)
     google_credentials: Optional["UserGoogleCredential"] = Relationship(back_populates="user")
 
