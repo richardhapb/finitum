@@ -53,18 +53,27 @@ def get_user_messages(user_id: int) -> None:
 
         em: EmailManager = EmailManager(credentials)
 
-        last = normalize_date_from(user.last_update) or datetime.now(TZ)
-        last = datetime.now() - timedelta(days=1)
+        now = datetime.now(TZ)
+        last = normalize_date_from(user.last_update) or now
         query = f"is:unread after:{last.strftime('%Y/%m/%d')}"
 
-        msgs = em.get_messages(query, date_from=last)
-        logger.info("%d messages fetched successfully for user %s", len(msgs), user.username)
+        user.last_update = now
 
-        saved_msgs = 0
-        for m in msgs:
-            saved = save_message(parser, m, session)
-            if saved:
-                saved_msgs += 1
+        try:
+            session.add(user)
+            msgs = em.get_messages(query, date_from=last)
+            logger.info("%d messages fetched successfully for user %s", len(msgs), user.username)
+            saved_msgs = 0
+            for m in msgs:
+                saved = save_message(parser, m, session)
+                if saved:
+                    saved_msgs += 1
+        except Exception:
+            logger.exception("Cannot save messages for user %d", user_id)
+            session.rollback()
+            return
+        else:
+            session.commit()
 
         logger.info("%d messages saved for user %s", saved_msgs, user.username)
 
