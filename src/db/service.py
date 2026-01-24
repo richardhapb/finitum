@@ -93,5 +93,6 @@ def get_engine() -> Engine:
 
 
 def get_session() -> Generator[Session]:
+    engine = get_engine()
     with Session(engine) as session:
         yield session
