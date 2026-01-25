@@ -17,12 +17,7 @@
         "GRAN AVENIDA",
         "DISTRIBUIDORA"
     ],
-    "Education": [
-        "LIBRERIA",
-        "UNAP",
-        "CURSO",
-        "ARTURO PRAT"
-    ],
+    "Education": ["LIBRERIA", "UNAP", "CURSO", "ARTURO PRAT"],
     "Transport": [
         "UBER",
         "CABIFY",
@@ -37,17 +32,8 @@
         "HOSPITALES",
         "PARKING"
     ],
-    "Services": [
-        "TELEFONO",
-        "GASCO",
-        "CHILECTRA",
-        "CGE",
-        "VTR",
-        "ENTEL"
-    ],
-    "Transfers": [
-        "TRASPASO"
-    ],
+    "Services": ["TELEFONO", "GASCO", "CHILECTRA", "CGE", "VTR", "ENTEL"],
+    "Transfers": ["TRASPASO"],
     "Clothing": [
         "ZARA",
         "H&M",
@@ -68,22 +54,14 @@
         "AMAZON",
         "STEAM"
     ],
-    "Sports": [
-        "DEPORTES",
-        "SPORTLIFE"
-    ],
-    "Loan": [
-        "MIGUEL"
-    ],
-    "ATM_withdrawal": [
-        "GIRO"
-    ],
-    "Investments": [
-        "BRYAN"
-    ],
+    "Sports": ["DEPORTES", "SPORTLIFE"],
+    "Loan": ["MIGUEL"],
+    "ATM_withdrawal": ["GIRO"],
+    "Investments": ["FONDOS MUTUOS"],
     "Housing": [
         "CONDOMINIO",
         "LUZ",
+        "DIVIDENDO",
         "AGUA",
         "RECAUDACION Y PAGOS DE SERVICIOS",
         "SODIMAC",
@@ -115,9 +93,7 @@
         "RACONTO",
         "KENTUCKY"
     ],
-    "Recreation": [
-        "TICKETPRO"
-    ],
+    "Recreation": ["TICKETPRO"],
     "Online": [
         "MERPAGO",
         "MERCADO PAGO",
@@ -138,35 +114,11 @@
         "AWS",
         "UPWORK"
     ],
-    "Commissions": [
-        "COMISION",
-        "IMPUESTO",
-        "INTERES"
-    ],
-    "Travel": [
-        "SKY",
-        "LATAM",
-        "JETSMART",
-        "PLUSS",
-        "AEROPUERTO",
-        "TUR BUS"
-    ],
-    "Health": [
-        "MEGASALUD"
-    ],
-    "Family": [
-        "RED KIDS",
-        "FINTOC"
-    ],
-    "Laundry": [
-        "PRONTOMATIC"
-    ],
-    "Books": [
-        "METALES PESADOS",
-        "ULISES",
-        "BUSCALIBRE"
-    ],
-    "Purified_water": [
-        "AMAWA"
-    ]
+    "Commissions": ["COMISION", "IMPUESTO", "INTERES"],
+    "Travel": ["SKY", "LATAM", "JETSMART", "PLUSS", "AEROPUERTO", "TUR BUS"],
+    "Health": ["MEGASALUD"],
+    "Family": ["RED KIDS", "FINTOC"],
+    "Laundry": ["PRONTOMATIC"],
+    "Books": ["METALES PESADOS", "ULISES", "BUSCALIBRE"],
+    "Purified_water": ["AMAWA"]
 }
