@@ -7,7 +7,6 @@ from kombu import Exchange, Queue
 from utils.config import APP_NAME, REDIS_URL
 
 celery = Celery(
-    APP_NAME,
     broker=os.getenv("CELERY_BROKER_URL", REDIS_URL),
     backend=os.getenv("CELERY_RESULT_BACKEND", REDIS_URL),
     include=[

@@ -1,7 +1,13 @@
 # Production overrides - use with: docker compose -f docker-compose.yml -f docker-compose.prod.yml up
 services:
-  api:
-    # Only expose to localhost in production (use reverse proxy)
-    ports: ["127.0.0.1:9090:9090"]
-    environment:
-      - DEBUG=false
+    api:
+        # Only expose to localhost in production (use reverse proxy)
+        ports: ["127.0.0.1:9090:9090"]
+        environment:
+            - DEBUG=false
+        volumes: []
+
+    worker:
+        volumes: ["./src:/app/src"]
+    beat:
+        volumes: []
