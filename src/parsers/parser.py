@@ -191,7 +191,7 @@ class EmailParser:
         amount_str = self._get_amount_str(msg, expense_type)
 
         if not amount_str:
-            logger.warning("amount not found for %s", expense_type.value)
+            logger.warning("amount not found for %s, %s", expense_type.value, msg.subject)
             logger.debug(msg.body)
             return None
 
@@ -220,7 +220,9 @@ class EmailParser:
         return Transference(amount_str, recipient_str, msg.date)
 
 
-def save_expense(user_id: int, parser: EmailParser, msg: Message, session: Session) -> DbTransference | DbExpense | None:
+def save_expense(
+    user_id: int, parser: EmailParser, msg: Message, session: Session
+) -> DbTransference | DbExpense | None:
     expense_type = parser._classify_message(msg)
 
     if expense_type == ExpenseType.TRANSFERENCE:

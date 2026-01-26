@@ -70,19 +70,19 @@ def _pick_body(msg: EmailMessage) -> str:
     htmls: list[str] = []
 
     def handle_payload(payload: str, ctype: str) -> None:
-        if payload is None:
+        if not payload:
             return
 
         if ctype == "text/plain":
-            texts.append(_ensure_str(payload))
+            texts.append(payload)
         elif ctype == "text/html":
-            htmls.append(remove_html_tags(_ensure_str(payload)))
-        else:
-            # Unknown single-part → treat as text
-            texts.append(_ensure_str(payload))
+            htmls.append(remove_html_tags(payload))
 
     if msg.is_multipart():
         for part in msg.walk():
+            if part.is_multipart():
+                continue  # skip multipart containers
+
             disp = (part.get("Content-Disposition") or "").lower()
             if "attachment" in disp:
                 continue  # skip attachments
