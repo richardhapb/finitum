@@ -120,6 +120,7 @@ class EmailParser:
         subject = message.subject.lower()
         for exclusion in self.bank_patterns.exclusions:
             if exclusion in subject:
+                logger.debug("Excluded by pattern: %s", exclusion)
                 return None
 
         if re.search(self.bank_patterns.purchase_pattern, subject, re.IGNORECASE):
@@ -129,6 +130,7 @@ class EmailParser:
         if re.search(self.bank_patterns.transference_pattern, subject, re.IGNORECASE):
             return ExpenseType.TRANSFERENCE
 
+        logger.debug("No pattern matched for subject: %s", subject)
         return None
 
     @classmethod
@@ -226,7 +228,7 @@ def save_expense(
     expense_type = parser._classify_message(msg)
 
     if expense_type == ExpenseType.TRANSFERENCE:
-        logger.info("Saving transference")
+        logger.info("Trying to save transference")
         transference = parser.get_transference(msg)
         if not transference:
             return None

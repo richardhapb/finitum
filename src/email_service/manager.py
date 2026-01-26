@@ -4,6 +4,7 @@ import base64
 import email
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from email.header import decode_header
 from email.message import Message as EmailMessage
 from email.utils import parsedate_to_datetime
 from typing import TYPE_CHECKING
@@ -28,6 +29,20 @@ def _ensure_str(s: bytes | bytearray | str | EmailMessage | None) -> str:
         return str(s)
 
     return bytes(s).decode("utf-8", errors="replace") if isinstance(s, (bytes, bytearray)) else s
+
+
+def _decode_header(header_value: str | None) -> str:
+    """Decode MIME-encoded header (RFC 2047) like =?utf-8?q?...?= to plain text."""
+    if not header_value:
+        return ""
+    parts = decode_header(header_value)
+    decoded_parts = []
+    for content, charset in parts:
+        if isinstance(content, bytes):
+            decoded_parts.append(content.decode(charset or "utf-8", errors="replace"))
+        else:
+            decoded_parts.append(content)
+    return "".join(decoded_parts)
 
 
 def _b64url_decode(s: str) -> bytes:
@@ -120,8 +135,8 @@ class Message:
         raw_bytes = _b64url_decode(raw_email_b64url)
         msg: EmailMessage = email.message_from_bytes(raw_bytes)
 
-        remitent = _ensure_str(msg.get("from"))
-        subject = _ensure_str(msg.get("subject"))
+        remitent = _decode_header(msg.get("from"))
+        subject = _decode_header(msg.get("subject"))
         date = _parse_date(_ensure_str(msg.get("date")))
 
         df = normalize_date_from(date_from)
