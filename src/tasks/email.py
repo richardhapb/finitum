@@ -1,11 +1,11 @@
 from datetime import datetime
 
-from sqlmodel import Session, select
+import sqlmodel
+import db.models as md
 
-from db.models import User, UserGoogleCredential, rebuild_credentials
 from db.service import get_session
 from email_service.manager import EmailManager, Message, normalize_date_from
-from parsers.parser import save_expense, EmailParser, BankNotFoundError
+from parsers.parser import BankNotFoundError, EmailParser, save_expense
 from tasks.app import celery
 from utils.config import TZ
 from utils.logger import get_logger
@@ -28,10 +28,10 @@ def get_user_messages(user_id: int) -> None:
     logger.info("Retrieving messages for user %d", user_id)
 
     with next(get_session()) as session:
-        user_query = select(User).where(User.id == user_id)
+        user_query = sqlmodel.select(md.User).where(md.User.id == user_id)
         user = session.exec(user_query).one()
 
-        credentials_query = select(UserGoogleCredential).where(UserGoogleCredential.user == user)
+        credentials_query = sqlmodel.select(md.UserGoogleCredential).where(md.UserGoogleCredential.user == user)
         credentials_obj = session.exec(credentials_query).one() if user else None
 
         if not credentials_obj:
@@ -42,7 +42,7 @@ def get_user_messages(user_id: int) -> None:
             )
             return
 
-        credentials = rebuild_credentials(credentials_obj)
+        credentials = md.rebuild_credentials(credentials_obj)
 
         parser = EmailParser(user.bank)
         try:
@@ -90,7 +90,8 @@ def get_user_messages(user_id: int) -> None:
     routing_key="periodic",
 )
 def get_messages() -> None:
-    users_query = select(User)
+
+    users_query = sqlmodel.select(md.User)
     with next(get_session()) as session:
         users = session.exec(users_query).all()
 
@@ -103,7 +104,7 @@ def get_messages() -> None:
             )
 
 
-def save_message(parser: EmailParser, msg: Message, session: Session) -> bool:
+def save_message(parser: EmailParser, msg: Message, session: sqlmodel.Session) -> bool:
     result = save_expense(parser, msg, session)
 
     if not result:
@@ -111,3 +112,7 @@ def save_message(parser: EmailParser, msg: Message, session: Session) -> bool:
         return False
 
     return True
+
+
+if __name__ == "__main__":
+    get_messages()
