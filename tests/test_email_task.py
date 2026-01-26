@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, patch
 from email_service.manager import Message
 from parsers.parser import EmailParser
 from parsers.base import Currency
+from tasks.email_fetch import save_message, get_user_messages
 
 
 # Test fixtures
@@ -20,7 +21,6 @@ class TestEmailTaskSaveMessage:
 
     def test_save_message_with_valid_expense(self):
         """Test save_message correctly processes a valid expense email."""
-        from tasks.email import save_message
 
         parser = EmailParser("banco_chile")
         parser.build_parser()
@@ -41,7 +41,6 @@ class TestEmailTaskSaveMessage:
 
     def test_save_message_with_valid_transference(self):
         """Test save_message correctly processes a valid transference email."""
-        from tasks.email import save_message
 
         parser = EmailParser("banco_chile")
         parser.build_parser()
@@ -62,7 +61,6 @@ class TestEmailTaskSaveMessage:
 
     def test_save_message_with_invalid_remitent(self):
         """Test save_message returns False for invalid remitent."""
-        from tasks.email import save_message
 
         parser = EmailParser("banco_chile")
         parser.build_parser()
@@ -83,7 +81,6 @@ class TestEmailTaskSaveMessage:
 
     def test_save_message_with_unknown_subject(self):
         """Test save_message returns False for unknown email type."""
-        from tasks.email import save_message
 
         parser = EmailParser("banco_chile")
         parser.build_parser()
@@ -98,7 +95,6 @@ class TestEmailTaskSaveMessage:
 
     def test_save_message_with_excluded_subject(self):
         """Test save_message returns False for excluded subject patterns."""
-        from tasks.email import save_message
 
         parser = EmailParser("banco_chile")
         parser.build_parser()
@@ -115,14 +111,13 @@ class TestEmailTaskSaveMessage:
 class TestEmailTaskEndToEnd:
     """End-to-end integration tests for the email task flow."""
 
-    @patch("tasks.email.get_session")
-    @patch("tasks.email.EmailManager")
-    @patch("tasks.email.rebuild_credentials")
+    @patch("tasks.email_fetch.get_session")
+    @patch("tasks.email_fetch.EmailManager")
+    @patch("tasks.email_fetch.md.rebuild_credentials")
     def test_get_user_messages_processes_multiple_messages(
         self, mock_rebuild_credentials, mock_email_manager_class, mock_get_session
     ):
         """Test that get_user_messages processes multiple messages correctly."""
-        from tasks.email import get_user_messages
 
         # Setup mock user
         mock_user = MagicMock()
@@ -175,18 +170,17 @@ class TestEmailTaskEndToEnd:
         # Verify messages were fetched
         mock_em_instance.get_messages.assert_called_once()
 
-        # Verify session.add was called for each valid message (2 times)
-        assert mock_session.add.call_count == 2
-        assert mock_session.commit.call_count == 2
+        # Verify session.add was called for each valid message (2 times) +  update `last_update`
+        assert mock_session.add.call_count == 3
+        assert mock_session.commit.call_count == 3
 
-    @patch("tasks.email.get_session")
-    @patch("tasks.email.EmailManager")
-    @patch("tasks.email.rebuild_credentials")
+    @patch("tasks.email_fetch.get_session")
+    @patch("tasks.email_fetch.EmailManager")
+    @patch("tasks.email_fetch.md.rebuild_credentials")
     def test_get_user_messages_uses_user_bank(
         self, mock_rebuild_credentials, mock_email_manager_class, mock_get_session
     ):
         """Test that get_user_messages uses user.bank for parser initialization."""
-        from tasks.email import get_user_messages
 
         # Setup mock user with santander bank
         mock_user = MagicMock()
@@ -226,15 +220,13 @@ class TestEmailTaskEndToEnd:
         get_user_messages(user_id=1)
 
         # Verify message was processed with correct santander remitent
-        assert mock_session.add.call_count == 1
+        # + last_update save
+        assert mock_session.add.call_count == 2
 
-    @patch("tasks.email.get_session")
-    @patch("tasks.email.rebuild_credentials")
-    def test_get_user_messages_handles_missing_credentials(
-        self, mock_rebuild_credentials, mock_get_session
-    ):
+    @patch("tasks.email_fetch.get_session")
+    @patch("tasks.email_fetch.md.rebuild_credentials")
+    def test_get_user_messages_handles_missing_credentials(self, mock_rebuild_credentials, mock_get_session):
         """Test that get_user_messages handles missing credentials gracefully."""
-        from tasks.email import get_user_messages
 
         mock_user = MagicMock()
         mock_user.id = 1
@@ -289,12 +281,12 @@ class TestBankPatternIntegration:
             result = parser.get_expense(msg)
             assert result is not None, f"Expected expense for {bank}/{fixture_file}"
             assert result.value > 0
-            assert result.currency in (Currency.CLP, Currency.USD)
+            assert result.currency in {Currency.CLP, Currency.USD}
         elif expected_type == "transference":
             result = parser.get_transference(msg)
             assert result is not None, f"Expected transference for {bank}/{fixture_file}"
             assert result.value > 0
-            assert result.recipient != ""
+            assert result.recipient
 
     def test_all_banco_chile_remitents_work(self):
         """Test that both valid banco_chile remitents are accepted."""
@@ -322,7 +314,6 @@ class TestTransferenceMatchesIntegration:
 
     def test_transference_with_valid_body_saves(self):
         """Test that transference with valid body pattern saves correctly."""
-        from tasks.email import save_message
 
         parser = EmailParser("banco_chile")
         parser.build_parser()
@@ -342,7 +333,6 @@ class TestTransferenceMatchesIntegration:
 
     def test_transference_with_invalid_body_not_saved(self):
         """Test that transference with invalid body pattern is not saved."""
-        from tasks.email import save_message
 
         parser = EmailParser("banco_chile")
         parser.build_parser()
@@ -358,7 +348,6 @@ class TestTransferenceMatchesIntegration:
 
     def test_santander_transference_any_body_saves(self):
         """Test that santander transference with any body saves (empty transference_matches pattern)."""
-        from tasks.email import save_message
 
         parser = EmailParser("santander")
         parser.build_parser()

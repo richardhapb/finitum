@@ -186,7 +186,7 @@ class EmailManager:
 
 
 if __name__ == "__main__":
-    from tasks.email import get_messages
+    from tasks.email_fetch import get_messages
 
     get_messages()
     logger.info("Get messages task triggered")

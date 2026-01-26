@@ -12,6 +12,8 @@ from utils.logger import get_logger
 
 logger = get_logger()
 
+rebuild_credentials = md.rebuild_credentials
+
 
 @celery.task(
     bind=False,
