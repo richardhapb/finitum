@@ -65,7 +65,7 @@ def get_user_messages(user_id: int) -> None:
             logger.info("%d messages fetched successfully for user %s", len(msgs), user.username)
             saved_msgs = 0
             for m in msgs:
-                saved = save_message(parser, m, session)
+                saved = save_message(user_id, parser, m, session)
                 if saved:
                     saved_msgs += 1
         except Exception:
@@ -104,15 +104,11 @@ def get_messages() -> None:
             )
 
 
-def save_message(parser: EmailParser, msg: Message, session: sqlmodel.Session) -> bool:
-    result = save_expense(parser, msg, session)
+def save_message(user_id: int, parser: EmailParser, msg: Message, session: sqlmodel.Session) -> bool:
+    result = save_expense(user_id, parser, msg, session)
 
     if not result:
         logger.debug("Email is not a expense")
         return False
 
     return True
-
-
-if __name__ == "__main__":
-    get_messages()

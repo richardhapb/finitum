@@ -218,7 +218,7 @@ class EmailParser:
         return Transference(amount_str, recipient_str, msg.date)
 
 
-def save_expense(parser: EmailParser, msg: Message, session: Session) -> DbTransference | DbExpense | None:
+def save_expense(user_id: int, parser: EmailParser, msg: Message, session: Session) -> DbTransference | DbExpense | None:
     expense_type = parser._classify_message(msg)
 
     if expense_type == ExpenseType.TRANSFERENCE:
@@ -227,6 +227,7 @@ def save_expense(parser: EmailParser, msg: Message, session: Session) -> DbTrans
         if not transference:
             return None
         db_transference = transference_to_db_model(transference)
+        db_transference.user_id = user_id
         session.add(db_transference)
         session.commit()
         session.refresh(db_transference)
@@ -237,6 +238,7 @@ def save_expense(parser: EmailParser, msg: Message, session: Session) -> DbTrans
         if not expense:
             return None
         db_expense = expense_to_db_model(expense)
+        db_expense.user_id = user_id
         session.add(db_expense)
         session.commit()
         session.refresh(db_expense)
