@@ -75,7 +75,7 @@ def get_user_messages(user_id: int) -> None:
         else:
             session.commit()
 
-        logger.info("%d messages saved for user %s", saved_msgs, user.username)
+        logger.info("%d expenses saved for user %s", saved_msgs, user.username)
 
 
 @celery.task(

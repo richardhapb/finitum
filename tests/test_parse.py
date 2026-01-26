@@ -303,7 +303,7 @@ def test_classify_message_purchase_compra_con_tarjeta():
     parser = EmailParser(BANK)
     parser.build_parser()
 
-    msg = Message(banco_chile_remitent, "Compra con tarjeta", time_obj, "body")
+    msg = Message(banco_chile_remitent, "Compra con Tarjeta de Crédito", time_obj, "body")
     expense_type = parser._classify_message(msg)
     assert expense_type == ExpenseType.PURCHASE
 

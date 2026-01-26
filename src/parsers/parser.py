@@ -191,6 +191,8 @@ class EmailParser:
         amount_str = self._get_amount_str(msg, expense_type)
 
         if not amount_str:
+            logger.warning("amount not found for %s", expense_type.value)
+            logger.debug(msg.body)
             return None
 
         if expense_type == ExpenseType.WITHDRAWAL:

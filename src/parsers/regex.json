@@ -10,9 +10,9 @@
             "transference": "transferencia"
         },
         "body": {
-            "amountPurchase": "(?:compra)\\s*por\\s*(\\S+)",
+            "amountPurchase": "compra\\s+por\\s+(\\S+)",
             "amountTransference": "Monto\\s*(\\S+)\\s*(?:Mensaje|ID)",
-            "amountWithdrawal": "(?:giro en Cajero)\\s*por\\s*(\\S+)",
+            "amountWithdrawal": "giro en Cajero\\s+por\\s+(\\S+)",
             "date": "\\d{1,2}/\\d{1,2}/\\d{4}(?:\\s+\\d{1,2}:\\d{2})?",
             "commerce": "compra\\s+por\\s+\\S+\\s*con\\s*\\D+\\d+\\s*en\\s*(.+)\\s*el\\s*\\d{1,2}/\\d{1,2}/\\d{4}(?:\\s+\\d{1,2}:\\d{2})?",
             "transferenceRecipient": "(?:Nombre y Apellido |Nombre )(.*) Rut",

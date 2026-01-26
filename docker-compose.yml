@@ -20,7 +20,7 @@ services:
 
     worker:
         image: finitum-api:latest
-        command: celery -A tasks.app:celery worker --loglevel=INFO --concurrency=${CELERY_CONCURRENCY:-2}
+        command: celery -A tasks.app:celery worker --loglevel=DEBUG --concurrency=${CELERY_CONCURRENCY:-2}
         env_file: .env
         volumes: ["./src:/app/src"]
         depends_on:
