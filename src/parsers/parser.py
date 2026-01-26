@@ -130,7 +130,6 @@ class EmailParser:
         if re.search(self.bank_patterns.transference_pattern, subject, re.IGNORECASE):
             return ExpenseType.TRANSFERENCE
 
-        logger.debug("No pattern matched for subject: %s", subject)
         return None
 
     @classmethod
