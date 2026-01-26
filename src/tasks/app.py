@@ -11,7 +11,7 @@ celery = Celery(
     broker=os.getenv("CELERY_BROKER_URL", REDIS_URL),
     backend=os.getenv("CELERY_RESULT_BACKEND", REDIS_URL),
     include=[
-        "tasks.email",
+        "tasks.email_fetch",
     ],
 )
 
@@ -44,7 +44,7 @@ celery.conf.update(
 
 celery.conf.beat_schedule = {
     "fetch-all-users-messages": {
-        "task": "tasks.email.get_messages",
+        "task": "tasks.email_fetch.get_messages",
         "schedule": crontab(minute=0, hour='8,20'),
         "options": {
             "queue": "periodic",
