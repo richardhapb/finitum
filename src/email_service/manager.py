@@ -129,8 +129,8 @@ class Message:
     def __str__(self) -> str:
         return f"From: {self.remitent}\nSubject: {self.subject}\nDate: {self.date}\n\n{self.body}"
 
-    @staticmethod
-    def parse_message(raw_email_b64url: str, date_from: datetime | None = None) -> Message | None:
+    @classmethod
+    def parse_message(cls, raw_email_b64url: str, date_from: datetime | None = None) -> Message | None:
         # Decode base64url -> bytes -> EmailMessage
         raw_bytes = _b64url_decode(raw_email_b64url)
         msg: EmailMessage = email.message_from_bytes(raw_bytes)
@@ -140,12 +140,16 @@ class Message:
         date = _parse_date(_ensure_str(msg.get("date")))
 
         df = normalize_date_from(date_from)
-        if df and date < df:
-            # older than threshold
+        if df and not cls._is_after_date_from(date, df):
             return None
 
         body = _pick_body(msg)
         return Message(remitent=remitent, subject=subject, date=date, body=body)
+
+    @staticmethod
+    def _is_after_date_from(date: datetime, date_from: datetime) -> bool:
+        # is earlier than threshold?
+        return date > date_from
 
 
 class EmailManager:
