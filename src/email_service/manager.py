@@ -79,7 +79,7 @@ def normalize_date_from(date_from: datetime | None) -> datetime | None:
     return date_from.astimezone(TZ)
 
 
-def _pick_body(msg: EmailMessage) -> str:
+def _pick_body(msg: EmailMessage) -> str:  # noqa: C901
     """Prefer text/plain (inline/none), else text/html stripped; fallback to join."""
     texts: list[str] = []
     htmls: list[str] = []
@@ -140,7 +140,7 @@ class Message:
         date = _parse_date(_ensure_str(msg.get("date")))
 
         df = normalize_date_from(date_from)
-        if df and date.date() < df.date():
+        if df and date < df:
             # older than threshold
             return None
 
