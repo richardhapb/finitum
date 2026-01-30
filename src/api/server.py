@@ -281,6 +281,17 @@ def google_callback(
     return response
 
 
+@app.post("/refresh", response_model=dict)
+async def refresh_token(request: Request, session: Session = Depends(get_session)) -> dict[str, str]:
+    """Refresh access token using refresh token from cookie."""
+    refresh_token = request.cookies.get(REFRESH_TOKEN_KEY)
+    if not refresh_token:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token not found")
+
+    new_access = await Token.refresh_access_token(refresh_token, session)
+    return {"access_token": new_access.token, "token_type": "bearer"}
+
+
 def save_credentials(user: User, credentials: dict[str, str | list[str] | None], session: Session) -> None:
     logger.debug("Saving credentials to user: %s", user.username)
 

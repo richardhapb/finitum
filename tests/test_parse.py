@@ -409,7 +409,7 @@ def test_bank_patterns_transference_matches_empty():
     """Test that empty transference_matches_regex is handled."""
     parser = EmailParser("santander")
     parser.build_parser()
-    assert parser.bank_patterns.transference_matches_regex == ""
+    assert not parser.bank_patterns.transference_matches_regex
 
 
 @pytest.mark.parametrize(
