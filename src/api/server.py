@@ -308,13 +308,36 @@ async def refresh_token(
 def save_credentials(user: User, credentials: dict[str, str | list[str] | None], session: Session) -> None:
     logger.debug("Saving credentials to user: %s", user.username)
 
-    new_cred = UserGoogleCredential(
-        user_id=user.id,
-        user=user,
-        granted_scopes=",".join(list(credentials["granted_scopes"] if credentials["granted_scopes"] else [])),
-        token=str(credentials["token"]),
-        refresh_token=str(credentials["refresh_token"]),
-    )
+    # Prepare new credential data
+    import json
 
-    session.add(new_cred)
+    new_cred_data = {
+        "user_id": user.id,
+        "user": user,
+        "token": str(credentials.get("token", "")),
+        "refresh_token": str(credentials.get("refresh_token", "")),
+        "token_uri": str(credentials.get("token_uri", "")),
+        "client_id": str(credentials.get("client_id", "")),
+        "client_secret": str(credentials.get("client_secret", "")),
+        "scopes_json": json.dumps(credentials.get("scopes", [])),
+        "granted_scopes_json": json.dumps(credentials.get("granted_scopes", [])),
+        "expiry": datetime.fromisoformat(str(credentials["expiry"])) if credentials.get("expiry") else None,
+        "id_token": str(credentials.get("id_token")) if credentials.get("id_token") else None,
+        "is_valid": True,
+    }
+
+    # Check for existing credentials
+    existing_cred = session.exec(select(UserGoogleCredential).where(UserGoogleCredential.user_id == user.id)).first()
+
+    if existing_cred:
+        logger.debug("Updating existing credentials for user: %s", user.username)
+        for key, value in new_cred_data.items():
+            if key != "user":  # Skip relationship field update to avoid conflicts
+                setattr(existing_cred, key, value)
+        session.add(existing_cred)
+    else:
+        logger.debug("Creating new credentials for user: %s", user.username)
+        new_cred = UserGoogleCredential(**new_cred_data)
+        session.add(new_cred)
+
     session.commit()
