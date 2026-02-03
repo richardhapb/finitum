@@ -1,10 +1,10 @@
-import jwt
 import os
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import TYPE_CHECKING, cast
 
+import jwt
 import redis
 from fastapi import Depends, FastAPI, Request, Response, status
 from fastapi.exceptions import HTTPException
@@ -12,12 +12,12 @@ from fastapi.responses import JSONResponse, RedirectResponse
 from sqlmodel import Session, or_, select
 from starlette.middleware.cors import CORSMiddleware
 
-from api.jwt import Token, get_current_user
+from api.jwt import Token, get_current_user, set_access_cookie, set_refresh_cookie
 from db.models import (
     Expense as DBExpense,
-    ExpenseCreate,
 )
 from db.models import (
+    ExpenseCreate,
     User,
     UserCreate,
     UserGoogleCredential,
@@ -27,7 +27,7 @@ from db.models import (
 )
 from db.service import get_session
 from oauth_service import google_oauth
-from utils.config import DEBUG, REDIS_HOST, REDIS_PORT, REFRESH_TOKEN_KEY
+from utils.config import DEBUG, REDIS_HOST, REDIS_PORT, REFRESH_TOKEN_KEY, ACCESS_TOKEN_KEY
 from utils.logger import get_logger
 
 if TYPE_CHECKING:
@@ -144,26 +144,25 @@ def signin(response: Response, user_data: UserLogin, session: Session = Depends(
     refresh_token = Token.create_refresh_token(data=data)
 
     logger.debug("Setting refresh_token cookie")
-    response.set_cookie(
-        key=REFRESH_TOKEN_KEY,
-        value=refresh_token.token,
-        httponly=True,
-        secure=not DEBUG,  # Only send over HTTPS
-        samesite="lax",  # Helps prevent CSRF attacks
-        expires=refresh_token.exp,
-    )
+    set_access_cookie(response, access_token)
+    set_refresh_cookie(response, refresh_token)
 
     logger.debug("Logged in successfully")
-    response.status_code = status.HTTP_200_OK
     response.status_code = status.HTTP_200_OK
 
     assert existing_user is not None
 
     return {
         "user": existing_user,
-        "access_token": access_token.token,
-        "token_type": "bearer",
     }
+
+
+@app.get("/logout", status_code=status.HTTP_200_OK)
+def logout(response: Response) -> dict[str, str]:
+    response.delete_cookie(REFRESH_TOKEN_KEY)
+    response.delete_cookie(ACCESS_TOKEN_KEY)
+
+    return {"msg": "OK"}
 
 
 @app.get("/me")
@@ -281,15 +280,26 @@ def google_callback(
     return response
 
 
+@app.get("/session", response_model=dict, status_code=status.HTTP_200_OK)
+def validate_session(_user: User = Depends(get_current_user)) -> dict[str, str]:
+    return {"msg": "OK"}
+
+
 @app.post("/refresh", response_model=dict)
-async def refresh_token(request: Request, session: Session = Depends(get_session)) -> dict[str, str]:
+async def refresh_token(
+    request: Request,
+    response: Response,
+    session: Session = Depends(get_session),
+) -> dict[str, str]:
     """Refresh access token using refresh token from cookie."""
     refresh_token = request.cookies.get(REFRESH_TOKEN_KEY)
     if not refresh_token:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token not found")
 
     new_access = await Token.refresh_access_token(refresh_token, session)
-    return {"access_token": new_access.token, "token_type": "bearer"}
+    set_access_cookie(response, new_access)
+
+    return {}
 
 
 def save_credentials(user: User, credentials: dict[str, str | list[str] | None], session: Session) -> None:

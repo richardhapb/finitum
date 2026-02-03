@@ -1,18 +1,20 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { authApi } from '../../lib/api';
 
 export function Navbar() {
   const navigate = useNavigate();
-  
+  const queryClient = useQueryClient();
+
   const { data: user } = useQuery({
     queryKey: ['me'],
     queryFn: authApi.getMe,
     retry: false,
   });
 
-  const handleLogout = () => {
-    localStorage.removeItem('access_token');
+  const handleLogout = async () => {
+    await authApi.logout();
+    queryClient.clear();
     navigate('/login');
   };
 

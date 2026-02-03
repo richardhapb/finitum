@@ -21,8 +21,6 @@ export interface UserLogin {
 
 export interface UserLoginResponse {
   user: User;
-  access_token: string;
-  token_type: string;
 }
 
 // Expense types
@@ -44,4 +42,8 @@ export interface CreateExpenseRequest {
   category: string;
   date?: string;
   description?: string;
+}
+
+export interface GenericResponse {
+  msg: string;
 }

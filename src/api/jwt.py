@@ -1,19 +1,20 @@
-from dataclasses import dataclass
-from datetime import datetime, timedelta, UTC
 import os
-from fastapi.exceptions import HTTPException
+from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 
-from fastapi import Depends, Request, status
 import jwt
-from db.service import get_session
-from utils.config import REFRESH_TOKEN_KEY
+from fastapi import Depends, Request, status
+from fastapi.exceptions import HTTPException
+from fastapi.responses import Response
+from fastapi.security.http import HTTPAuthorizationCredentials, HTTPBase
+from jwt.exceptions import PyJWTError
+from sqlmodel import Session, select
+from starlette.requests import Request as StRequest
+from starlette.status import HTTP_403_FORBIDDEN
 
 from db.models import User
-from sqlmodel import Session, select
-from jwt.exceptions import PyJWTError
-
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-
+from db.service import get_session
+from utils.config import ACCESS_TOKEN_KEY, DEBUG, REFRESH_TOKEN_KEY
 from utils.logger import get_logger
 
 
@@ -23,7 +24,22 @@ class JWTError(Exception):
 
 logger = get_logger()
 
-bearer_scheme = HTTPBearer()
+
+class HTTPCookieBearer(HTTPBase):
+    def __init__(self, *, scheme: str = "bearer", auto_error: bool = True):
+        super().__init__(scheme=scheme, auto_error=auto_error)
+
+    async def __call__(self, request: StRequest) -> HTTPAuthorizationCredentials | None:
+        token = request.cookies.get(ACCESS_TOKEN_KEY)
+        if not token:
+            if self.auto_error:
+                raise HTTPException(status_code=HTTP_403_FORBIDDEN, detail="Not authenticated")
+            return None
+        scheme = "bearer"
+        return HTTPAuthorizationCredentials(scheme=scheme, credentials=token)
+
+
+bearer_scheme = HTTPCookieBearer()
 
 encoded_jwt = jwt.encode({"some": "payload"}, "secret", algorithm="HS256")
 jwt.decode(encoded_jwt, "secret", algorithms=["HS256"])
@@ -110,6 +126,7 @@ class Token:
 
 async def get_current_user(
     request: Request,
+    response: Response,
     creds: HTTPAuthorizationCredentials = Depends(bearer_scheme),
     session: Session = Depends(get_session),
 ) -> User:
@@ -123,18 +140,18 @@ async def get_current_user(
     payload = Token.verify_token(token)
     if payload is None:
         # Try to refresh
-
         logger.debug("Access token not valid, trying with refresh token")
 
         refresh_token = request.cookies.get(REFRESH_TOKEN_KEY)
         if not refresh_token:
             logger.debug("Refresh token not found")
             raise credentials_exception
-        token = (await Token.refresh_access_token(refresh_token, session)).token
+        access_token = await Token.refresh_access_token(refresh_token, session)
 
-        payload = Token.verify_token(token)
+        payload = Token.verify_token(access_token.token)
         if payload is None:
             raise credentials_exception
+        set_access_cookie(response, access_token)
 
     username: str | None = payload.get("sub")
     if username is None:
@@ -147,3 +164,25 @@ async def get_current_user(
         raise credentials_exception
 
     return user
+
+
+def set_refresh_cookie(response: Response, token: Token) -> None:
+    response.set_cookie(
+        key=REFRESH_TOKEN_KEY,
+        value=token.token,
+        httponly=True,
+        secure=not DEBUG,  # Only send over HTTPS
+        samesite="lax",  # Helps prevent CSRF attacks
+        expires=token.exp,
+    )
+
+
+def set_access_cookie(response: Response, token: Token) -> None:
+    response.set_cookie(
+        key=ACCESS_TOKEN_KEY,
+        value=token.token,
+        httponly=True,
+        secure=not DEBUG,  # Only send over HTTPS
+        samesite="lax",  # Helps prevent CSRF attacks
+        expires=token.exp,
+    )

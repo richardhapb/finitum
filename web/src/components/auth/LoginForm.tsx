@@ -14,7 +14,7 @@ type LoginFormData = z.infer<typeof loginSchema>;
 
 export function LoginForm() {
   const navigate = useNavigate();
-  
+
   const {
     register,
     handleSubmit,
@@ -26,8 +26,7 @@ export function LoginForm() {
   const loginMutation = useMutation({
     mutationFn: (data: LoginFormData) =>
       authApi.signin(data.usernameOrEmail, data.password),
-    onSuccess: (data) => {
-      localStorage.setItem('access_token', data.access_token);
+    onSuccess: () => {
       navigate('/dashboard');
     },
     onError: (error: any) => {
@@ -47,7 +46,7 @@ export function LoginForm() {
     <div className="min-h-screen flex items-center justify-center bg-gray-100">
       <div className="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
         <h2 className="text-2xl font-bold mb-6 text-center">Login</h2>
-        
+
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div>
             <label className="block text-sm font-medium mb-1">

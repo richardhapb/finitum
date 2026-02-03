@@ -162,8 +162,6 @@ class UserResponse(SQLModel):
 
 class UserLoginResponse(SQLModel):
     user: UserResponse
-    access_token: str
-    token_type: str
 
 
 class UpdateError(Exception):
