@@ -70,6 +70,7 @@ class UserGoogleCredential(SQLModel, table=True):
 
     expiry: datetime | None = None
     id_token: str | None = Field(default=None, sa_column=Column(Text))
+    is_valid: bool = Field(default=True)  # False when refresh token expired/revoked
 
     def scopes(self) -> list[str]:
         try:
@@ -156,6 +157,8 @@ class UserResponse(SQLModel):
     username: str
     email: EmailStr
     last_update: datetime
+    has_google_credentials: bool = False
+    is_google_credentials_valid: bool = False
 
     model_config: ClassVar[dict[str, Any]] = {"from_attributes": True}
 
@@ -213,6 +216,9 @@ def _normalize_scopes(scopes_val: list | str | None) -> list[str]:
 
 
 def rebuild_credentials(credentials: dict[str, Any] | UserGoogleCredential) -> Credentials:
+    if isinstance(credentials, UserGoogleCredential) and not credentials.is_valid:
+        raise ValueError("Credentials are marked as invalid")
+
     def _to_aware_utc(dt: datetime | None) -> datetime | None:
         if not dt:
             return None

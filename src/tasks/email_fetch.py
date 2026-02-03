@@ -1,5 +1,6 @@
 from datetime import datetime
 
+from google.auth.exceptions import RefreshError
 import sqlmodel
 import db.models as md
 
@@ -16,6 +17,7 @@ logger = get_logger()
 @celery.task(
     bind=False,
     autoretry_for=(Exception,),
+    dont_autoretry_for=(RefreshError,),  # Token expired/revoked - not retryable
     retry_backoff=True,  # exponential (1, 2, 4, 8…)
     retry_backoff_max=300,  # cap at 5 minimum
     retry_jitter=True,
@@ -40,6 +42,11 @@ def get_user_messages(user_id: int) -> None:
                 user.username if user else None,
                 credentials_obj,
             )
+            return
+
+        # Skip users with invalid (expired/revoked) credentials
+        if not credentials_obj.is_valid:
+            logger.warning("Skipping user %s: credentials marked as invalid", user.username)
             return
 
         credentials = md.rebuild_credentials(credentials_obj)
@@ -68,10 +75,17 @@ def get_user_messages(user_id: int) -> None:
                 saved = save_message(user_id, parser, m, session)
                 if saved:
                     saved_msgs += 1
+        except RefreshError:
+            # Token expired/revoked - mark credentials as invalid
+            logger.error("Google OAuth refresh failed for user %s; marking credentials as invalid", user.username)
+            credentials_obj.is_valid = False
+            session.add(credentials_obj)
+            session.commit()
+            return
         except Exception:
             logger.exception("Cannot save messages for user %d", user_id)
             session.rollback()
-            return
+            raise
         else:
             session.commit()
 
@@ -90,8 +104,10 @@ def get_user_messages(user_id: int) -> None:
     routing_key="periodic",
 )
 def get_messages() -> None:
-
-    users_query = sqlmodel.select(md.User)
+    # Only fetch users with valid Google credentials
+    users_query = (
+        sqlmodel.select(md.User).join(md.UserGoogleCredential).where(md.UserGoogleCredential.is_valid == True)  # noqa: E712
+    )
     with next(get_session()) as session:
         users = session.exec(users_query).all()
 

@@ -1,4 +1,3 @@
-import os
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
@@ -14,7 +13,7 @@ from starlette.status import HTTP_403_FORBIDDEN
 
 from db.models import User
 from db.service import get_session
-from utils.config import ACCESS_TOKEN_KEY, DEBUG, REFRESH_TOKEN_KEY
+from utils.config import ACCESS_TOKEN_KEY, DEBUG, REFRESH_TOKEN_KEY, SECRET_KEY
 from utils.logger import get_logger
 
 
@@ -41,11 +40,7 @@ class HTTPCookieBearer(HTTPBase):
 
 bearer_scheme = HTTPCookieBearer()
 
-encoded_jwt = jwt.encode({"some": "payload"}, "secret", algorithm="HS256")
-jwt.decode(encoded_jwt, "secret", algorithms=["HS256"])
-
-SECRET_KEY = os.getenv("SECRET_KEY")
-if not SECRET_KEY:
+if "insecure" in SECRET_KEY:
     raise JWTError("Missed SECRET_KEY")
 
 ALGORITHM = "HS256"

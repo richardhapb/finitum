@@ -55,9 +55,9 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS: In DEBUG mode allow all origins for mobile dev, otherwise use explicit list
-_default_origins = "http://localhost:9090 http://localhost:8081"
-_allowed_origins = ["*"] if DEBUG else os.getenv("ALLOWED_ORIGINS", _default_origins).split()
+# CORS: Must use explicit origins when credentials are enabled (not "*")
+_default_origins = "http://localhost:5173 http://localhost:9090 http://localhost:8081"
+_allowed_origins = os.getenv("ALLOWED_ORIGINS", _default_origins).split()
 
 app.add_middleware(
     cast("_MiddlewareFactory", CORSMiddleware),
@@ -177,6 +177,9 @@ def get_current_user_info(
             "email": current_user.email,
             "last_update": current_user.last_update.isoformat(),
             "has_google_credentials": current_user.google_credentials is not None,
+            "is_google_credentials_valid": current_user.google_credentials.is_valid
+            if current_user.google_credentials
+            else False,
         }
     )
 

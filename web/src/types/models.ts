@@ -5,6 +5,7 @@ export interface User {
   email: string;
   last_update: string;
   has_google_credentials?: boolean;
+  is_google_credentials_valid?: boolean;
 }
 
 export interface UserCreate {

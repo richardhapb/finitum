@@ -42,6 +42,8 @@ class GoogleClient:
     granted_scopes: dict[str, bool] = {}
 
     def __init__(self, credentials: Credentials | UserGoogleCredential | None = None):
+        if isinstance(credentials, UserGoogleCredential) and not credentials.is_valid:
+            credentials = None
         self.credentials = credentials
 
     def authorize_oauth2(self, state: str | None) -> tuple[str, str]:
