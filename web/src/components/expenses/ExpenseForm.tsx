@@ -24,7 +24,7 @@ export function ExpenseForm() {
     reset,
     formState: { errors },
   } = useForm<ExpenseFormData>({
-    resolver: zodResolver(expenseSchema),
+    resolver: zodResolver(expenseSchema) as any,
     defaultValues: {
       currency: 'USD',
       date: new Date().toISOString().split('T')[0],
