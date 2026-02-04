@@ -80,7 +80,7 @@ export function ExpenseChart() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-gray-800 text-white p-4 rounded-lg shadow-lg border border-gray-700">
           <p className="text-sm text-gray-300">Total Expenses</p>
-          <p className="text-2xl font-bold">${total.toFixed(2)}</p>
+          <p className="text-2xl font-bold">${total.toLocaleString()}</p>
         </div>
         <div className="bg-gray-800 text-white p-4 rounded-lg shadow-lg border border-gray-700">
           <p className="text-sm text-gray-300">Transactions</p>
@@ -88,7 +88,7 @@ export function ExpenseChart() {
         </div>
         <div className="bg-gray-800 text-white p-4 rounded-lg shadow-lg border border-gray-700">
           <p className="text-sm text-gray-300">Average</p>
-          <p className="text-2xl font-bold">${(total / expenses.length).toFixed(2)}</p>
+          <p className="text-2xl font-bold">${(total / expenses.length).toLocaleString()}</p>
         </div>
       </div>
 
@@ -102,7 +102,7 @@ export function ExpenseChart() {
             <YAxis stroke="#9ca3af" />
             <Tooltip
               cursor={{ fill: '#374151', opacity: 0.3 }}
-              formatter={(value: number | undefined) => value != null ? `$${value.toFixed(2)}` : ''}
+              formatter={(value: number | undefined) => value != null ? `$${value.toLocaleString()}` : ''}
               contentStyle={{
                 backgroundColor: '#1f2937',
                 border: '1px solid #374151',
@@ -138,7 +138,7 @@ export function ExpenseChart() {
                 ))}
               </Pie>
               <Tooltip
-                formatter={(value: number | undefined) => value != null ? `$${value.toFixed(2)}` : ''}
+                formatter={(value: number | undefined) => value != null ? `$${value.toLocaleString()}` : ''}
                 contentStyle={{
                   backgroundColor: '#1f2937',
                   border: '1px solid #374151',
@@ -159,7 +159,7 @@ export function ExpenseChart() {
                     style={{ backgroundColor: COLORS[index % COLORS.length] }}
                   />
                   <span className="text-sm text-gray-200">
-                    {item.name}: ${item.value.toFixed(2)}
+                    {item.name}: ${item.value.toLocaleString()}
                   </span>
                 </div>
               ))}

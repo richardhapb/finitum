@@ -19,7 +19,7 @@ logger = get_logger()
 
 def minimum_date_factory() -> datetime:
     """Default to now - new users won't fetch historical emails."""
-    return datetime.now()
+    return datetime.now(UTC)
 
 
 class User(SQLModel, table=True):
@@ -219,14 +219,20 @@ def rebuild_credentials(credentials: dict[str, Any] | UserGoogleCredential) -> C
     if isinstance(credentials, UserGoogleCredential) and not credentials.is_valid:
         raise ValueError("Credentials are marked as invalid")
 
-    def _to_aware_utc(dt: datetime | None) -> datetime | None:
+    def _to_naive_utc(dt: datetime | None) -> datetime | None:
+        """Convert datetime to naive UTC for Google's auth library compatibility.
+
+        Google's auth library compares expiry against _helpers.utcnow() which
+        returns a naive datetime. We must provide a naive UTC datetime to avoid
+        'can't compare offset-naive and offset-aware datetimes' errors.
+        """
         if not dt:
             return None
         if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=UTC)
-        else:
-            dt = dt.astimezone(UTC)
-        return dt
+            # Already naive, assume it's UTC
+            return dt
+        # Convert to UTC and strip tzinfo for naive comparison
+        return dt.astimezone(UTC).replace(tzinfo=None)
 
     def _to_scopes(sc: str | None) -> list[str] | None:
         if not sc:
@@ -245,7 +251,7 @@ def rebuild_credentials(credentials: dict[str, Any] | UserGoogleCredential) -> C
     sc_attr = getattr(credentials, "scopes", None)
     scopes = _to_scopes(sc_attr or getattr(credentials, "granted_scopes", None))
     id_token = getattr(credentials, "id_token", None)
-    expiry = _to_aware_utc(getattr(credentials, "expiry", None))
+    expiry = _to_naive_utc(getattr(credentials, "expiry", None))
 
     missing = [
         name

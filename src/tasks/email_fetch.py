@@ -105,9 +105,7 @@ def get_user_messages(user_id: int) -> None:
 )
 def get_messages() -> None:
     # Only fetch users with valid Google credentials
-    users_query = (
-        sqlmodel.select(md.User).join(md.UserGoogleCredential).where(md.UserGoogleCredential.is_valid == True)  # noqa: E712
-    )
+    users_query = sqlmodel.select(md.User).join(md.UserGoogleCredential).where(md.UserGoogleCredential.is_valid)
     with next(get_session()) as session:
         users = session.exec(users_query).all()
 
