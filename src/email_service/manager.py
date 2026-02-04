@@ -38,10 +38,14 @@ def _decode_header(header_value: str | None) -> str:
     parts = decode_header(header_value)
     decoded_parts = []
     for content, charset in parts:
-        if isinstance(content, bytes):
-            decoded_parts.append(content.decode(charset or "utf-8", errors="replace"))
-        else:
-            decoded_parts.append(content)
+        try:
+            if isinstance(content, bytes):
+                decoded_parts.append(content.decode(charset or "utf-8", errors="replace"))
+            else:
+                decoded_parts.append(content)
+        except LookupError:
+            logger.exception("Error decoding part: %s", content)
+            continue
     return "".join(decoded_parts)
 
 
