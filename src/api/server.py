@@ -1,3 +1,5 @@
+from tasks.email_fetch import get_user_messages
+import json
 import os
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
@@ -27,7 +29,7 @@ from db.models import (
 )
 from db.service import get_session
 from oauth_service import google_oauth
-from utils.config import DEBUG, REDIS_HOST, REDIS_PORT, REFRESH_TOKEN_KEY, ACCESS_TOKEN_KEY
+from utils.config import ACCESS_TOKEN_KEY, DEBUG, REDIS_HOST, REDIS_PORT, REFRESH_TOKEN_KEY
 from utils.logger import get_logger
 
 if TYPE_CHECKING:
@@ -259,6 +261,11 @@ def google_callback(
 
     user = session.exec(select(User).where(User.email == email)).first()
 
+    if user:
+        # Update the expenses of the user now because
+        # is reactivated or new
+        get_user_messages.delay(user.id)
+
     if not user:
         user = User(username=email, email=email)
         session.add(user)
@@ -309,7 +316,6 @@ def save_credentials(user: User, credentials: dict[str, str | list[str] | None],
     logger.debug("Saving credentials to user: %s", user.username)
 
     # Prepare new credential data
-    import json
 
     new_cred_data = {
         "user_id": user.id,

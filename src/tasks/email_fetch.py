@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from google.auth.exceptions import RefreshError
 import sqlmodel
@@ -61,7 +61,7 @@ def get_user_messages(user_id: int) -> None:
         em: EmailManager = EmailManager(credentials)
 
         now = datetime.now(TZ)
-        last = normalize_date_from(user.last_update) or now
+        last = normalize_date_from(user.last_update) or (now - timedelta(days=30))
         query = f"after:{last.strftime('%Y/%m/%d')}"
 
         user.last_update = now
