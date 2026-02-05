@@ -334,14 +334,8 @@ def google_callback(
     refresh = Token.create_refresh_token({"sub": user.username})
 
     response = RedirectResponse("/dashboard")
-    response.set_cookie(
-        key=REFRESH_TOKEN_KEY,
-        value=refresh.token,
-        httponly=True,
-        samesite="lax",
-    )
-
-    response.headers["Authorization"] = f"Bearer {access.token}"
+    set_access_cookie(response, access)
+    set_refresh_cookie(response, refresh)
 
     return response
 
