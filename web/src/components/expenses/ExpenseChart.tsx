@@ -9,7 +9,6 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
-  Legend,
   ResponsiveContainer,
 } from 'recharts';
 import { expensesApi } from '../../lib/api';
@@ -199,7 +198,7 @@ export function ExpenseChart() {
             </div>
 
             {/* Category Legend with amounts */}
-            <div className="w-1/2 pl-4 max-h-[280px] overflow-y-auto">
+            <div className="w-1/2 pl-4 max-h-70 overflow-y-auto">
               <div className="space-y-2">
                 {categoryChartData.slice(0, 8).map((item, index) => {
                   const percent = ((item.value / total) * 100).toFixed(1);
@@ -207,12 +206,12 @@ export function ExpenseChart() {
                     <div key={item.name} className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2 min-w-0">
                         <div
-                          className="w-3 h-3 rounded-sm flex-shrink-0"
+                          className="w-3 h-3 rounded-sm shrink-0"
                           style={{ backgroundColor: COLORS[index % COLORS.length] }}
                         />
                         <span className="text-sm text-gray-300 truncate">{item.name}</span>
                       </div>
-                      <div className="text-right flex-shrink-0">
+                      <div className="text-right shrink-0">
                         <span className="text-sm font-medium text-white">{percent}%</span>
                       </div>
                     </div>

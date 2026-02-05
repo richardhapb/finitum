@@ -45,7 +45,7 @@ celery.conf.update(
 celery.conf.beat_schedule = {
     "fetch-all-users-messages": {
         "task": "tasks.email_fetch.get_messages",
-        "schedule": crontab(minute=0, hour='8,20'),
+        "schedule": crontab(minute=0),  # Each hour
         "options": {
             "queue": "periodic",
             "routing_key": "periodic",
