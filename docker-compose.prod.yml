@@ -1,13 +1,23 @@
 # Production overrides - use with: docker compose -f docker-compose.yml -f docker-compose.prod.yml up
 services:
     api:
-        # Only expose to localhost in production (use reverse proxy)
+        image: ghcr.io/richardhapb/finitum-api:latest
         ports: ["127.0.0.1:9090:9090"]
+        env_file: .env.prod
         environment:
             - DEBUG=false
         volumes: []
 
     worker:
-        volumes: ["./src:/app/src"]
-    beat:
+        image: ghcr.io/richardhapb/finitum-api:latest
+        env_file: .env.prod
         volumes: []
+
+    beat:
+        image: ghcr.io/richardhapb/finitum-api:latest
+        env_file: .env.prod
+        volumes: []
+
+    alembic:
+        env_file: .env.prod
+        image: ghcr.io/richardhapb/finitum-api:latest
