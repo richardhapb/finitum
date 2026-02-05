@@ -31,7 +31,10 @@ export function LandingPage() {
     <div className="min-h-screen bg-gray-900 text-white">
       {/* Navigation */}
       <nav className="max-w-7xl mx-auto px-4 py-6 flex justify-between items-center">
-        <h1 className="text-2xl font-bold">Finitum</h1>
+        <div>
+          <h1 className="text-2xl font-bold">Finitum</h1>
+          <span className="text-sm text-gray-400">Personal Finance Manager</span>
+        </div>
         <div className="flex gap-4">
           <Link
             to="/login"
@@ -49,7 +52,7 @@ export function LandingPage() {
       </nav>
 
       {/* Hero Section */}
-      <section className="max-w-7xl mx-auto px-4 py-20 text-center">
+      <section className="max-w-7xl mx-auto px-4 py-12 text-center">
         <h2 className="text-5xl font-bold mb-6">
           Track Your Expenses
           <span className="block text-blue-400">Automatically</span>
@@ -110,10 +113,36 @@ export function LandingPage() {
         </div>
       </section>
 
+      {/* About Section - Required for Google OAuth Verification */}
+      <section className="max-w-4xl mx-auto px-4 py-12">
+        <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-6">
+          <h2 className="text-2xl font-bold mb-4 text-white">About Finitum</h2>
+          <div className="text-gray-300 leading-relaxed space-y-3 text-sm">
+            <p>
+              <strong className="text-white">Finitum</strong> is a personal finance management application that helps you
+              automatically track expenses without manual data entry.
+            </p>
+            <p>
+              It connects securely to your Gmail using Google OAuth 2.0 to read bank notification emails,
+              extracts transaction data (amounts, dates, merchants), and presents them in an organized dashboard
+              with visual analytics.
+            </p>
+            <p>
+              <strong className="text-white">Privacy:</strong> Finitum only reads emails from recognized bank senders.
+              No raw email content is stored - only extracted financial data is saved to your account.
+            </p>
+          </div>
+        </div>
+      </section>
+
       {/* Footer */}
       <footer className="max-w-7xl mx-auto px-4 py-8 border-t border-gray-800">
-        <div className="flex justify-between items-center text-gray-400 text-sm">
-          <span>Finitum</span>
+        <div className="flex flex-col md:flex-row justify-between items-center gap-4 text-gray-400 text-sm">
+          <div className="text-center md:text-left">
+            <span className="font-semibold text-white">Finitum</span>
+            <span className="mx-2">|</span>
+            <span>Personal Finance Manager</span>
+          </div>
           <div className="flex gap-6">
             <Link to="/guide" className="hover:text-white transition-colors">
               Guide
