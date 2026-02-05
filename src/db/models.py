@@ -126,6 +126,7 @@ class UserCreate(SQLModel):
     username: str
     email: EmailStr
     password: str
+    bank: str = "banco_chile"
 
     @field_validator("password")
     @classmethod
@@ -135,6 +136,13 @@ class UserCreate(SQLModel):
             msg = "Password must be at least 8 characters"
             raise ValueError(msg)
         return v
+
+
+class UserUpdate(SQLModel):
+    """Model for updating user profile."""
+
+    username: str | None = None
+    bank: str | None = None
 
 
 class UserLogin(SQLModel):

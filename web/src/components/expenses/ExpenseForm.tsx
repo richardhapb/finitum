@@ -4,6 +4,24 @@ import { z } from 'zod';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { expensesApi } from '../../lib/api';
 
+const CATEGORIES = [
+  { value: 'FOOD', label: 'Food' },
+  { value: 'EXTERNAL_FOOD', label: 'Restaurants' },
+  { value: 'TRANSPORT', label: 'Transport' },
+  { value: 'ENTERTAINMENT', label: 'Entertainment' },
+  { value: 'RECREATION', label: 'Recreation' },
+  { value: 'CLOTHING', label: 'Clothing' },
+  { value: 'SERVICES', label: 'Services' },
+  { value: 'HEALTH', label: 'Health' },
+  { value: 'EDUCATION', label: 'Education' },
+  { value: 'HOUSING', label: 'Housing' },
+  { value: 'ONLINE', label: 'Online' },
+  { value: 'TRAVEL', label: 'Travel' },
+  { value: 'SPORTS', label: 'Sports' },
+  { value: 'FAMILY', label: 'Family' },
+  { value: 'GENERAL', label: 'Other' },
+];
+
 const expenseSchema = z.object({
   commerce: z.string().min(1, 'Commerce name is required'),
   amount: z.coerce.number().positive('Amount must be positive'),
@@ -26,7 +44,8 @@ export function ExpenseForm() {
   } = useForm<ExpenseFormData>({
     resolver: zodResolver(expenseSchema) as any,
     defaultValues: {
-      currency: 'USD',
+      currency: 'CLP',
+      category: 'GENERAL',
       date: new Date().toISOString().split('T')[0],
     },
   });
@@ -36,8 +55,12 @@ export function ExpenseForm() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['expenses'] });
       reset({
-        currency: 'USD',
+        currency: 'CLP',
+        category: 'GENERAL',
         date: new Date().toISOString().split('T')[0],
+        commerce: '',
+        amount: undefined,
+        description: '',
       });
     },
     onError: (error: any) => {
@@ -74,14 +97,11 @@ export function ExpenseForm() {
               {...register('category')}
               className="w-full px-3 py-2 bg-gray-700 border border-gray-600 text-white rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              <option value="">Select category</option>
-              <option value="Food">Food</option>
-              <option value="Transport">Transport</option>
-              <option value="Entertainment">Entertainment</option>
-              <option value="Shopping">Shopping</option>
-              <option value="Bills">Bills</option>
-              <option value="Health">Health</option>
-              <option value="Other">Other</option>
+              {CATEGORIES.map((cat) => (
+                <option key={cat.value} value={cat.value}>
+                  {cat.label}
+                </option>
+              ))}
             </select>
             {errors.category && (
               <p className="text-red-400 text-sm mt-1">{errors.category.message}</p>
@@ -109,10 +129,8 @@ export function ExpenseForm() {
                 {...register('currency')}
                 className="w-full px-3 py-2 bg-gray-700 border border-gray-600 text-white rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                <option value="USD">USD</option>
-                <option value="EUR">EUR</option>
-                <option value="GBP">GBP</option>
                 <option value="CLP">CLP</option>
+                <option value="USD">USD</option>
               </select>
               {errors.currency && (
                 <p className="text-red-400 text-sm mt-1">{errors.currency.message}</p>

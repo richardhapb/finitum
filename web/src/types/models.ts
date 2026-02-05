@@ -3,6 +3,7 @@ export interface User {
   id: string;
   username: string;
   email: string;
+  bank: string;
   last_update: string;
   has_google_credentials?: boolean;
   is_google_credentials_valid?: boolean;
@@ -12,6 +13,17 @@ export interface UserCreate {
   username: string;
   email: string;
   password: string;
+  bank: string;
+}
+
+export interface UserUpdate {
+  username?: string;
+  bank?: string;
+}
+
+export interface Bank {
+  id: string;
+  name: string;
 }
 
 export interface UserLogin {

@@ -1,9 +1,11 @@
 import type {
+  Bank,
   CreateExpenseRequest,
   Expense,
   GenericResponse,
   User,
   UserLoginResponse,
+  UserUpdate,
 } from "../types/models";
 import axios from 'axios';
 
@@ -20,11 +22,13 @@ export const authApi = {
     username: string,
     email: string,
     password: string,
+    bank: string,
   ): Promise<User> => {
     const response = await api.post<User>("/signup", {
       username,
       email,
       password,
+      bank,
     });
     return response.data;
   },
@@ -58,8 +62,21 @@ export const authApi = {
     return response.data;
   },
 
+  updateMe: async (data: UserUpdate): Promise<User> => {
+    const response = await api.patch<User>("/me", data);
+    return response.data;
+  },
+
   getGoogleAuthUrl: (): string => {
     return `${API_URL}/google-authorize`;
+  },
+};
+
+// Banks API
+export const banksApi = {
+  getAll: async (): Promise<Bank[]> => {
+    const response = await api.get<Bank[]>("/banks");
+    return response.data;
   },
 };
 

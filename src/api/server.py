@@ -17,6 +17,7 @@ from starlette.middleware.cors import CORSMiddleware
 from api.jwt import Token, get_current_user, set_access_cookie, set_refresh_cookie
 from db.models import (
     Expense as DBExpense,
+    UserUpdate,
 )
 from db.models import (
     ExpenseCreate,
@@ -79,6 +80,17 @@ async def health() -> JSONResponse:
     return JSONResponse(status_code=200, content={"message": "OK", "redis": redis_status})
 
 
+@app.get("/banks")
+def get_available_banks() -> JSONResponse:
+    """Get list of available banks for email parsing."""
+    regex_path = os.path.join(os.path.dirname(__file__), "..", "parsers", "regex.json")
+    with open(regex_path, encoding="utf-8") as f:
+        banks_config = json.load(f)
+
+    banks = [{"id": bank_id, "name": bank_id.replace("_", " ").title()} for bank_id in banks_config]
+    return JSONResponse(content=banks)
+
+
 @app.get("/debug/state")
 async def debug_session() -> JSONResponse:
     if not DEBUG:
@@ -111,7 +123,7 @@ def signup(user_data: UserCreate, session: Session = Depends(get_session)) -> Us
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"User with this {field} already exists")
 
     # Create new user object
-    new_user = User(username=user_data.username, email=user_data.email)
+    new_user = User(username=user_data.username, email=user_data.email, bank=user_data.bank)
     new_user.set_password(user_data.password)
 
     # Save to database
@@ -131,6 +143,11 @@ def signin(response: Response, user_data: UserLogin, session: Session = Depends(
     if not existing_user:
         field = "email" if user_data.email else "username"
         msg = f"User with this {field} doesn't exist"
+        logger.error(msg)
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=msg)
+
+    if not existing_user.password:
+        msg = "User registered with google OAuth, init with google account instead"
         logger.error(msg)
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=msg)
 
@@ -177,6 +194,45 @@ def get_current_user_info(
             "id": current_user.id,
             "username": current_user.username,
             "email": current_user.email,
+            "bank": current_user.bank,
+            "last_update": current_user.last_update.isoformat(),
+            "has_google_credentials": current_user.google_credentials is not None,
+            "is_google_credentials_valid": current_user.google_credentials.is_valid
+            if current_user.google_credentials
+            else False,
+        }
+    )
+
+
+@app.patch("/me")
+def update_current_user(
+    user_update: UserUpdate,
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+) -> JSONResponse:
+    """Update current user's profile."""
+    if user_update.username:
+        # Check if username is taken
+        existing = session.exec(
+            select(User).where(User.username == user_update.username, User.id != current_user.id)
+        ).first()
+        if existing:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Username already taken")
+        current_user.username = user_update.username
+
+    if user_update.bank:
+        current_user.bank = user_update.bank
+
+    session.add(current_user)
+    session.commit()
+    session.refresh(current_user)
+
+    return JSONResponse(
+        content={
+            "id": current_user.id,
+            "username": current_user.username,
+            "email": current_user.email,
+            "bank": current_user.bank,
             "last_update": current_user.last_update.isoformat(),
             "has_google_credentials": current_user.google_credentials is not None,
             "is_google_credentials_valid": current_user.google_credentials.is_valid
@@ -277,7 +333,7 @@ def google_callback(
     access = Token.create_access_token({"sub": user.username})
     refresh = Token.create_refresh_token({"sub": user.username})
 
-    response = RedirectResponse("/expenses")
+    response = RedirectResponse("/dashboard")
     response.set_cookie(
         key=REFRESH_TOKEN_KEY,
         value=refresh.token,

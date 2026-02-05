@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { authApi } from '../../lib/api';
 
 export function Navbar() {
@@ -19,9 +19,27 @@ export function Navbar() {
   };
 
   return (
-    <nav className="bg-gray-900 text-white p-4">
+    <nav className="bg-gray-900 text-white p-4 border-b border-gray-800">
       <div className="max-w-7xl mx-auto flex justify-between items-center">
-        <h1 className="text-xl font-bold">Finitum</h1>
+        <div className="flex items-center gap-6">
+          <Link to="/dashboard" className="text-xl font-bold hover:text-gray-300 transition-colors">
+            Finitum
+          </Link>
+          <div className="flex gap-4">
+            <Link
+              to="/dashboard"
+              className="text-sm text-gray-300 hover:text-white transition-colors"
+            >
+              Dashboard
+            </Link>
+            <Link
+              to="/profile"
+              className="text-sm text-gray-300 hover:text-white transition-colors"
+            >
+              Profile
+            </Link>
+          </div>
+        </div>
         <div className="flex items-center gap-4">
           {user && <span className="text-sm text-gray-300">{user.username}</span>}
           <button

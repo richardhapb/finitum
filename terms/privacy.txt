@@ -1,0 +1,20 @@
+Privacy Policy
+
+Finitum respects your privacy.
+
+Finitum only accesses Gmail data with the user's explicit consent, and
+only for the purpose of extracting financial transaction information
+from bank notification emails.
+
+No raw email content is permanently stored.
+Only extracted transaction data (amount, merchant, date, category)
+is saved to provide financial analytics.
+
+Finitum does not sell, share, or use user data for advertising purposes.
+
+Authentication is handled securely using Google OAuth2 and JWT tokens.
+Sensitive credentials and tokens are stored securely.
+
+If you have questions about this policy, contact:
+finitumapp@gmail.com
+
