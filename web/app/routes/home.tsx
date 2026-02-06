@@ -1,5 +1,5 @@
-import { Link } from 'react-router-dom';
-import { authApi } from '../lib/api';
+import { Link } from "react-router";
+import { authApi } from "../lib/api";
 
 const GoogleIcon = () => (
   <svg className="w-5 h-5" viewBox="0 0 24 24">
@@ -22,7 +22,7 @@ const GoogleIcon = () => (
   </svg>
 );
 
-export function LandingPage() {
+export default function LandingPage() {
   const handleGoogleLogin = () => {
     window.location.href = authApi.getGoogleAuthUrl();
   };
@@ -32,8 +32,10 @@ export function LandingPage() {
       {/* Navigation */}
       <nav className="max-w-7xl mx-auto px-4 py-6 flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-bold">Finitum</h1>
-          <span className="text-sm text-gray-400">Personal Finance Manager</span>
+          <span className="text-2xl font-bold">Finitum</span>
+          <span className="block text-sm text-gray-400">
+            Personal Finance Manager
+          </span>
         </div>
         <div className="flex gap-4">
           <Link
@@ -53,14 +55,40 @@ export function LandingPage() {
 
       {/* Hero Section */}
       <section className="max-w-7xl mx-auto px-4 py-12 text-center">
-        <h2 className="text-5xl font-bold mb-6">
-          Track Your Expenses
-          <span className="block text-blue-400">Automatically</span>
-        </h2>
-        <p className="text-xl text-gray-400 max-w-2xl mx-auto mb-10">
-          Finitum connects to your Gmail and automatically extracts transaction data
-          from bank notifications. No more manual entry.
+        <h1 className="text-6xl font-bold mb-4 text-blue-400">Finitum</h1>
+        <p className="text-2xl text-gray-300 mb-6">
+          Personal Finance Manager - Automatic Expense Tracking
         </p>
+
+        {/* Google OAuth Compliance Summary (CRITICAL) */}
+        <div className="max-w-3xl mx-auto mb-10 text-left text-gray-300 text-sm bg-gray-800/40 border border-gray-700 rounded-lg p-4">
+          <p>
+            <strong>Finitum</strong> is a personal finance application that uses
+            Google OAuth to read bank transaction notification emails from a
+            user's Gmail account.
+          </p>
+          <p className="mt-2">
+            Email access is strictly limited to messages that match predefined
+            sender domains and subject patterns associated with financial
+            institutions. The application extracts transaction data such as
+            amount, date, and merchant.
+          </p>
+          <p className="mt-2">
+            Finitum does not store email bodies, attachments, or personal
+            messages. Only extracted transaction metadata is stored securely.
+          </p>
+        </div>
+
+        <h2 className="text-4xl font-bold mb-6">
+          Track Your Expenses Automatically
+        </h2>
+
+        <p className="text-xl text-gray-400 max-w-2xl mx-auto mb-10">
+          Finitum is a personal finance application that connects to your Gmail
+          and reads bank transaction notification emails to extract structured
+          transaction data. No manual entry required.
+        </p>
+
         <div className="flex flex-col items-center gap-4">
           <div className="flex gap-4">
             <Link
@@ -76,6 +104,7 @@ export function LandingPage() {
               Login
             </Link>
           </div>
+
           <button
             onClick={handleGoogleLogin}
             className="flex items-center gap-2 px-6 py-2 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg transition-colors"
@@ -93,43 +122,50 @@ export function LandingPage() {
             <div className="text-3xl mb-4">📧</div>
             <h3 className="text-xl font-semibold mb-2">Gmail Integration</h3>
             <p className="text-gray-400">
-              Securely connect your Gmail to automatically import transactions from bank emails.
+              Reads bank transaction notification emails using secure Google
+              OAuth access.
             </p>
           </div>
+
           <div className="bg-gray-800 p-6 rounded-lg">
             <div className="text-3xl mb-4">📊</div>
             <h3 className="text-xl font-semibold mb-2">Visual Analytics</h3>
             <p className="text-gray-400">
-              See where your money goes with intuitive charts and spending breakdowns.
+              Analyze spending patterns with charts and categorized summaries.
             </p>
           </div>
+
           <div className="bg-gray-800 p-6 rounded-lg">
             <div className="text-3xl mb-4">🔒</div>
             <h3 className="text-xl font-semibold mb-2">Privacy First</h3>
             <p className="text-gray-400">
-              No raw emails stored. Only extracted transaction data is saved securely.
+              No raw emails stored. Only extracted transaction metadata is saved.
             </p>
           </div>
         </div>
       </section>
 
-      {/* About Section - Required for Google OAuth Verification */}
+      {/* About Section */}
       <section className="max-w-4xl mx-auto px-4 py-12">
         <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-6">
-          <h2 className="text-2xl font-bold mb-4 text-white">About Finitum</h2>
+          <h3 className="text-2xl font-bold mb-4 text-white">About Finitum</h3>
           <div className="text-gray-300 leading-relaxed space-y-3 text-sm">
             <p>
-              <strong className="text-white">Finitum</strong> is a personal finance management application that helps you
-              automatically track expenses without manual data entry.
+              <strong className="text-white">Finitum</strong> is a personal finance
+              management application designed to automatically track expenses
+              without manual input.
             </p>
             <p>
-              It connects securely to your Gmail using Google OAuth 2.0 to read bank notification emails,
-              extracts transaction data (amounts, dates, merchants), and presents them in an organized dashboard
-              with visual analytics.
+              The application uses Google OAuth 2.0 to read bank transaction
+              notification emails sent by recognized financial institutions. It
+              extracts structured transaction data including amount, date, and
+              merchant, and presents it through an analytics dashboard.
             </p>
             <p>
-              <strong className="text-white">Privacy:</strong> Finitum only reads emails from recognized bank senders.
-              No raw email content is stored - only extracted financial data is saved to your account.
+              <strong className="text-white">Privacy:</strong> Email access is
+              limited to predefined sender domains and subject patterns. Finitum
+              does not store email bodies, attachments, or personal
+              communications.
             </p>
           </div>
         </div>
@@ -159,3 +195,4 @@ export function LandingPage() {
     </div>
   );
 }
+

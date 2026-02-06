@@ -1,6 +1,6 @@
-import { Link } from 'react-router-dom';
+import { Link } from "react-router";
 
-export function GuidePage() {
+export default function GuidePage() {
   return (
     <div className="min-h-screen bg-gray-900 text-white">
       {/* Navigation */}

@@ -4,7 +4,6 @@ import {
   Bar,
   PieChart,
   Pie,
-  Cell,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -65,11 +64,15 @@ export function ExpenseChart() {
   }, {});
 
   const categoryChartData = Object.entries(categoryData)
-    .map(([name, value]) => ({
+    .map(([name, value], index) => ({
       name: formatCategoryName(name),
       value: Number(value.toFixed(2)),
+      fill: COLORS[index % COLORS.length],
+      stroke: "#1f2937",
+      strokeWidth: 2,
     }))
     .sort((a, b) => b.value - a.value);
+
 
   // Group by month (last 6 months)
   const monthlyData = expenses.reduce((acc: Record<string, number>, expense: Expense) => {
@@ -147,8 +150,8 @@ export function ExpenseChart() {
                   backgroundColor: '#1f2937',
                   border: '1px solid #374151',
                   borderRadius: '8px',
-                  color: '#fff',
                 }}
+                itemStyle={{ color: '#fff' }}
                 labelStyle={{ color: '#9ca3af' }}
               />
               <Bar dataKey="amount" fill="#3b82f6" radius={[4, 4, 0, 0]} />
@@ -171,16 +174,7 @@ export function ExpenseChart() {
                     outerRadius={90}
                     paddingAngle={2}
                     dataKey="value"
-                  >
-                    {categoryChartData.map((_entry, index) => (
-                      <Cell
-                        key={`cell-${index}`}
-                        fill={COLORS[index % COLORS.length]}
-                        stroke="#1f2937"
-                        strokeWidth={2}
-                      />
-                    ))}
-                  </Pie>
+                  />
                   <Tooltip
                     formatter={(value: number | undefined, _name, props) => {
                       const percent = ((value || 0) / total * 100).toFixed(1);
@@ -190,8 +184,8 @@ export function ExpenseChart() {
                       backgroundColor: '#1f2937',
                       border: '1px solid #374151',
                       borderRadius: '8px',
-                      color: '#fff',
                     }}
+                    itemStyle={{ color: '#fff' }}
                   />
                 </PieChart>
               </ResponsiveContainer>

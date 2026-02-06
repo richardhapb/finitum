@@ -1,10 +1,10 @@
-import { Navigate, Outlet } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
-import { authApi } from '../../lib/api';
+import { Navigate, Outlet } from "react-router";
+import { useQuery } from "@tanstack/react-query";
+import { authApi } from "../lib/api";
 
-export function ProtectedRoute() {
+export default function ProtectedRoute() {
   const { isLoading, isError } = useQuery({
-    queryKey: ['session'],
+    queryKey: ["session"],
     queryFn: authApi.validateSession,
     retry: false,
   });

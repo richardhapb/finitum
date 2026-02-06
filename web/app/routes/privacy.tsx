@@ -1,4 +1,11 @@
-export function Privacy() {
+import type { MetaFunction } from "react-router";
+
+export const meta: MetaFunction = () => [
+  { title: "Privacy Policy - Finitum" },
+  { name: "description", content: "Finitum privacy policy. Learn how Finitum handles your Gmail data and protects your privacy." },
+];
+
+export default function Privacy() {
   return (
     <div className="min-h-screen bg-gray-900 text-white">
       <div className="max-w-4xl mx-auto px-4 py-8">
@@ -26,7 +33,7 @@ export function Privacy() {
           </p>
 
           <p>
-            If you have questions about this policy, contact:{' '}
+            If you have questions about this policy, contact:{" "}
             <a href="mailto:finitumapp@gmail.com" className="text-blue-400 hover:underline">
               finitumapp@gmail.com
             </a>
@@ -34,5 +41,5 @@ export function Privacy() {
         </article>
       </div>
     </div>
-  )
+  );
 }

@@ -1,13 +1,13 @@
-import { Navbar } from '../components/layout/Navbar';
-import { ExpenseForm } from '../components/expenses/ExpenseForm';
-import { ExpenseList } from '../components/expenses/ExpenseList';
-import { ExpenseChart } from '../components/expenses/ExpenseChart';
-import { useQuery } from '@tanstack/react-query';
-import { authApi } from '../lib/api';
+import { Navbar } from "../components/layout/Navbar";
+import { ExpenseForm } from "../components/expenses/ExpenseForm";
+import { ExpenseList } from "../components/expenses/ExpenseList";
+import { ExpenseChart } from "../components/expenses/ExpenseChart";
+import { useQuery } from "@tanstack/react-query";
+import { authApi } from "../lib/api";
 
-export function DashboardPage() {
+export default function DashboardPage() {
   const { data: user } = useQuery({
-    queryKey: ['me'],
+    queryKey: ["me"],
     queryFn: authApi.getMe,
   });
 
@@ -24,7 +24,7 @@ export function DashboardPage() {
               <div>
                 <h3 className="font-semibold text-yellow-500">Google Account Connection Required</h3>
                 <p className="text-sm text-gray-300">
-                  {!user.has_google_credentials 
+                  {!user.has_google_credentials
                     ? "Connect your Google account to automatically import expenses."
                     : "Your Google session has expired. Please reconnect to continue importing expenses."}
                 </p>

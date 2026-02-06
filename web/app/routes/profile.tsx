@@ -1,32 +1,32 @@
-import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Navbar } from '../components/layout/Navbar';
-import { authApi, banksApi } from '../lib/api';
+import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Navbar } from "../components/layout/Navbar";
+import { authApi, banksApi } from "../lib/api";
 
-export function ProfilePage() {
+export default function ProfilePage() {
   const queryClient = useQueryClient();
   const [isEditing, setIsEditing] = useState(false);
-  const [username, setUsername] = useState('');
-  const [bank, setBank] = useState('');
+  const [username, setUsername] = useState("");
+  const [bank, setBank] = useState("");
 
   const { data: user, isLoading } = useQuery({
-    queryKey: ['me'],
+    queryKey: ["me"],
     queryFn: authApi.getMe,
   });
 
   const { data: banks = [] } = useQuery({
-    queryKey: ['banks'],
+    queryKey: ["banks"],
     queryFn: banksApi.getAll,
   });
 
   const updateMutation = useMutation({
     mutationFn: authApi.updateMe,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['me'] });
+      queryClient.invalidateQueries({ queryKey: ["me"] });
       setIsEditing(false);
     },
     onError: (error: any) => {
-      alert(error.response?.data?.detail || 'Update failed');
+      alert(error.response?.data?.detail || "Update failed");
     },
   });
 
@@ -109,7 +109,7 @@ export function ProfilePage() {
                   d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
                 />
               </svg>
-              {user?.has_google_credentials ? 'Reconnect Gmail' : 'Connect Gmail'}
+              {user?.has_google_credentials ? "Reconnect Gmail" : "Connect Gmail"}
             </a>
           </div>
         </div>
@@ -172,7 +172,7 @@ export function ProfilePage() {
             <div>
               <label className="block text-sm font-medium text-gray-400 mb-1">Last Sync</label>
               <p className="text-white">
-                {user?.last_update ? new Date(user.last_update).toLocaleString() : 'Never'}
+                {user?.last_update ? new Date(user.last_update).toLocaleString() : "Never"}
               </p>
             </div>
 
@@ -183,7 +183,7 @@ export function ProfilePage() {
                   disabled={updateMutation.isPending}
                   className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors disabled:bg-gray-600"
                 >
-                  {updateMutation.isPending ? 'Saving...' : 'Save Changes'}
+                  {updateMutation.isPending ? "Saving..." : "Save Changes"}
                 </button>
                 <button
                   onClick={handleCancel}

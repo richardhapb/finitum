@@ -1,4 +1,11 @@
-export function Terms() {
+import type { MetaFunction } from "react-router";
+
+export const meta: MetaFunction = () => [
+  { title: "Terms of Service - Finitum" },
+  { name: "description", content: "Finitum terms of service." },
+];
+
+export default function Terms() {
   return (
     <div className="min-h-screen bg-gray-900 text-white">
       <div className="max-w-4xl mx-auto px-4 py-8">
@@ -22,7 +29,7 @@ export function Terms() {
           </p>
 
           <p>
-            Contact:{' '}
+            Contact:{" "}
             <a href="mailto:finitumapp@gmail.com" className="text-blue-400 hover:underline">
               finitumapp@gmail.com
             </a>
@@ -30,5 +37,5 @@ export function Terms() {
         </article>
       </div>
     </div>
-  )
+  );
 }
