@@ -31,6 +31,9 @@ dependencies = [
     "ty>=0.0.1a21",
 ]
 
+[project.scripts]
+app = "src.api.server:app"
+
 [tool.ruff]
 target-version = "py313"
 fix = true
