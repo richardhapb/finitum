@@ -1,10 +1,10 @@
 """Integration tests for the email task module."""
 
 import pytest
-from datetime import datetime
+from datetime import UTC, datetime
 from unittest.mock import MagicMock, patch
 
-from email_service.manager import Message
+from email_service.manager import Message, normalize_date_from
 from parsers.parser import EmailParser
 from parsers.base import Currency
 from tasks.email_fetch import save_message, get_user_messages
@@ -33,7 +33,7 @@ class TestEmailTaskSaveMessage:
         msg = Message(banco_chile_remitent, subject, time_obj, body)
         mock_session = MagicMock()
 
-        result = save_message(parser, msg, mock_session)
+        result = save_message(1, parser, msg, mock_session)
 
         assert result is True
         mock_session.add.assert_called_once()
@@ -53,7 +53,7 @@ class TestEmailTaskSaveMessage:
         msg = Message(transference_remitent, subject, time_obj, body)
         mock_session = MagicMock()
 
-        result = save_message(parser, msg, mock_session)
+        result = save_message(1, parser, msg, mock_session)
 
         assert result is True
         mock_session.add.assert_called_once()
@@ -74,7 +74,7 @@ class TestEmailTaskSaveMessage:
         msg = Message(invalid_remitent, subject, time_obj, body)
         mock_session = MagicMock()
 
-        result = save_message(parser, msg, mock_session)
+        result = save_message(1, parser, msg, mock_session)
 
         assert result is False
         mock_session.add.assert_not_called()
@@ -88,7 +88,7 @@ class TestEmailTaskSaveMessage:
         msg = Message(banco_chile_remitent, "Random unknown subject", time_obj, "Some body")
         mock_session = MagicMock()
 
-        result = save_message(parser, msg, mock_session)
+        result = save_message(1, parser, msg, mock_session)
 
         assert result is False
         mock_session.add.assert_not_called()
@@ -102,7 +102,7 @@ class TestEmailTaskSaveMessage:
         msg = Message(transference_remitent, "Transferencia entre mis cuentas", time_obj, "body")
         mock_session = MagicMock()
 
-        result = save_message(parser, msg, mock_session)
+        result = save_message(1, parser, msg, mock_session)
 
         assert result is False
         mock_session.add.assert_not_called()
@@ -251,6 +251,47 @@ class TestEmailTaskEndToEnd:
 
         mock_rebuild_credentials.assert_not_called()
 
+    @patch("tasks.email_fetch.get_session")
+    @patch("tasks.email_fetch.EmailManager")
+    @patch("tasks.email_fetch.md.rebuild_credentials")
+    def test_get_user_messages_uses_unix_after_query(
+        self, mock_rebuild_credentials, mock_email_manager_class, mock_get_session
+    ):
+        original_last_update = datetime(2026, 2, 14, 2, 0, 0)  # naive UTC from DB
+        mock_user = MagicMock()
+        mock_user.id = 1
+        mock_user.username = "testuser"
+        mock_user.bank = "banco_chile"
+        mock_user.last_update = original_last_update
+
+        mock_creds_obj = MagicMock()
+        mock_creds_obj.is_valid = True
+
+        mock_session = MagicMock()
+        mock_exec_user = MagicMock()
+        mock_exec_user.one.return_value = mock_user
+        mock_exec_creds = MagicMock()
+        mock_exec_creds.one.return_value = mock_creds_obj
+        mock_session.exec.side_effect = [mock_exec_user, mock_exec_creds]
+
+        mock_context_manager = MagicMock()
+        mock_context_manager.__enter__ = MagicMock(return_value=mock_session)
+        mock_context_manager.__exit__ = MagicMock(return_value=False)
+        mock_get_session.return_value = iter([mock_context_manager])
+
+        mock_rebuild_credentials.return_value = MagicMock()
+
+        mock_em_instance = MagicMock()
+        mock_em_instance.get_messages.return_value = []
+        mock_email_manager_class.return_value = mock_em_instance
+
+        get_user_messages(user_id=1)
+
+        expected_last = normalize_date_from(original_last_update)
+        expected_query = f"after:{int(expected_last.astimezone(UTC).timestamp())}"
+
+        mock_em_instance.get_messages.assert_called_once_with(expected_query, date_from=expected_last)
+
 
 class TestBankPatternIntegration:
     """Integration tests for bank pattern matching across different banks."""
@@ -326,7 +367,7 @@ class TestTransferenceMatchesIntegration:
         msg = Message(transference_remitent, subject, time_obj, body)
         mock_session = MagicMock()
 
-        result = save_message(parser, msg, mock_session)
+        result = save_message(1, parser, msg, mock_session)
 
         assert result is True
         mock_session.add.assert_called_once()
@@ -341,7 +382,7 @@ class TestTransferenceMatchesIntegration:
         msg = Message(transference_remitent, "Transferencia", time_obj, invalid_body)
         mock_session = MagicMock()
 
-        result = save_message(parser, msg, mock_session)
+        result = save_message(1, parser, msg, mock_session)
 
         assert result is False
         mock_session.add.assert_not_called()
@@ -360,7 +401,7 @@ class TestTransferenceMatchesIntegration:
         msg = Message("mensajeria@santander.cl", subject, time_obj, body)
         mock_session = MagicMock()
 
-        result = save_message(parser, msg, mock_session)
+        result = save_message(1, parser, msg, mock_session)
 
         assert result is True
         mock_session.add.assert_called_once()

@@ -78,8 +78,8 @@ def normalize_date_from(date_from: datetime | None) -> datetime | None:
     if date_from is None:
         return None
     if date_from.tzinfo is None:
-        # Assume local TZ if naive
-        date_from = TZ.localize(date_from)
+        # Datetimes from DB are commonly stored as naive UTC.
+        date_from = date_from.replace(tzinfo=UTC)
     return date_from.astimezone(TZ)
 
 

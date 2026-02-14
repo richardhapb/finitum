@@ -28,7 +28,7 @@ class TestSaveExpenseIntegration:
         msg = Message(banco_chile_remitent, subject, time_obj, expense_data)
 
         mock_session = MagicMock()
-        result = save_expense(parser, msg, mock_session)
+        result = save_expense(1, parser, msg, mock_session)
 
         assert result is not None
         mock_session.add.assert_called_once()
@@ -48,7 +48,7 @@ class TestSaveExpenseIntegration:
         msg = Message(valid_remitent, subject, time_obj, data)
 
         mock_session = MagicMock()
-        result = save_expense(parser, msg, mock_session)
+        result = save_expense(1, parser, msg, mock_session)
 
         assert result is not None
         mock_session.add.assert_called_once()
@@ -67,7 +67,7 @@ class TestSaveExpenseIntegration:
         msg = Message(banco_chile_remitent, subject, time_obj, data)
 
         mock_session = MagicMock()
-        result = save_expense(parser, msg, mock_session)
+        result = save_expense(1, parser, msg, mock_session)
 
         assert result is not None
         mock_session.add.assert_called_once()
@@ -86,7 +86,7 @@ class TestSaveExpenseIntegration:
         msg = Message(invalid_remitent, subject, time_obj, expense_data)
 
         mock_session = MagicMock()
-        result = save_expense(parser, msg, mock_session)
+        result = save_expense(1, parser, msg, mock_session)
 
         assert result is None
         mock_session.add.assert_not_called()
@@ -100,7 +100,7 @@ class TestSaveExpenseIntegration:
         msg = Message(banco_chile_remitent, "Unknown subject type", time_obj, "some body")
 
         mock_session = MagicMock()
-        result = save_expense(parser, msg, mock_session)
+        result = save_expense(1, parser, msg, mock_session)
 
         assert result is None
         mock_session.add.assert_not_called()
@@ -114,7 +114,7 @@ class TestSaveExpenseIntegration:
         msg = Message(banco_chile_remitent, "Transferencia entre mis cuentas", time_obj, "body")
 
         mock_session = MagicMock()
-        result = save_expense(parser, msg, mock_session)
+        result = save_expense(1, parser, msg, mock_session)
 
         assert result is None
         mock_session.add.assert_not_called()

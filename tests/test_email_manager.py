@@ -1,9 +1,9 @@
 from collections.abc import Callable
-from datetime import datetime
+from datetime import UTC, datetime
 
 import pytest
 
-from email_service.manager import Message
+from email_service.manager import Message, normalize_date_from
 
 
 @pytest.fixture
@@ -62,3 +62,13 @@ def test_is_after_date_from_reject_exact_time(message_factory):
     msg = message_factory(msg_date)
 
     assert not msg._is_after_date_from(msg_date, date_from)
+
+
+def test_normalize_date_from_naive_is_treated_as_utc():
+    naive = datetime(2026, 2, 14, 2, 0, 0)
+
+    normalized = normalize_date_from(naive)
+
+    assert normalized is not None
+    assert normalized.tzinfo is not None
+    assert normalized.timestamp() == pytest.approx(naive.replace(tzinfo=UTC).timestamp())

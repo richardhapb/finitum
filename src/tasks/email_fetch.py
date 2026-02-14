@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 from google.auth.exceptions import RefreshError
 import sqlmodel
@@ -62,7 +62,8 @@ def get_user_messages(user_id: int) -> None:
 
         now = datetime.now(TZ)
         last = normalize_date_from(user.last_update) or (now - timedelta(days=30))
-        query = f"after:{last.strftime('%Y/%m/%d')}"
+        # Use second precision to avoid day-boundary/timezone mismatches.
+        query = f"after:{int(last.astimezone(UTC).timestamp())}"
 
         user.last_update = now
 
