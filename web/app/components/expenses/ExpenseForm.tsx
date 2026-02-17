@@ -5,21 +5,21 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { expensesApi } from '../../lib/api';
 
 const CATEGORIES = [
-  { value: 'FOOD', label: 'Food' },
-  { value: 'EXTERNAL_FOOD', label: 'Restaurants' },
-  { value: 'TRANSPORT', label: 'Transport' },
-  { value: 'ENTERTAINMENT', label: 'Entertainment' },
-  { value: 'RECREATION', label: 'Recreation' },
-  { value: 'CLOTHING', label: 'Clothing' },
-  { value: 'SERVICES', label: 'Services' },
-  { value: 'HEALTH', label: 'Health' },
-  { value: 'EDUCATION', label: 'Education' },
-  { value: 'HOUSING', label: 'Housing' },
-  { value: 'ONLINE', label: 'Online' },
-  { value: 'TRAVEL', label: 'Travel' },
-  { value: 'SPORTS', label: 'Sports' },
-  { value: 'FAMILY', label: 'Family' },
-  { value: 'GENERAL', label: 'Other' },
+  { value: 'food', label: 'Food' },
+  { value: 'external_food', label: 'Restaurants' },
+  { value: 'transport', label: 'Transport' },
+  { value: 'entertainment', label: 'Entertainment' },
+  { value: 'recreation', label: 'Recreation' },
+  { value: 'clothing', label: 'Clothing' },
+  { value: 'services', label: 'Services' },
+  { value: 'health', label: 'Health' },
+  { value: 'education', label: 'Education' },
+  { value: 'housing', label: 'Housing' },
+  { value: 'online', label: 'Online' },
+  { value: 'travel', label: 'Travel' },
+  { value: 'sports', label: 'Sports' },
+  { value: 'family', label: 'Family' },
+  { value: 'general', label: 'Other' },
 ];
 
 const expenseSchema = z.object({
@@ -44,8 +44,8 @@ export function ExpenseForm() {
   } = useForm<ExpenseFormData>({
     resolver: zodResolver(expenseSchema) as any,
     defaultValues: {
-      currency: 'CLP',
-      category: 'GENERAL',
+      currency: 'clp',
+      category: 'general',
       date: new Date().toISOString().split('T')[0],
     },
   });
@@ -55,8 +55,8 @@ export function ExpenseForm() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['expenses'] });
       reset({
-        currency: 'CLP',
-        category: 'GENERAL',
+        currency: 'clp',
+        category: 'general',
         date: new Date().toISOString().split('T')[0],
         commerce: '',
         amount: undefined,
@@ -64,7 +64,14 @@ export function ExpenseForm() {
       });
     },
     onError: (error: any) => {
-      alert(error.response?.data?.detail || 'Failed to add expense');
+      const detail = error.response?.data?.detail;
+      let message = 'Failed to add expense';
+      if (typeof detail === 'string') {
+        message = detail;
+      } else if (Array.isArray(detail)) {
+        message = detail.map((e: any) => e.msg || JSON.stringify(e)).join(', ');
+      }
+      alert(message);
     },
   });
 
@@ -129,8 +136,8 @@ export function ExpenseForm() {
                 {...register('currency')}
                 className="w-full px-3 py-2 bg-gray-700 border border-gray-600 text-white rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                <option value="CLP">CLP</option>
-                <option value="USD">USD</option>
+                <option value="clp">CLP</option>
+                <option value="usd">USD</option>
               </select>
               {errors.currency && (
                 <p className="text-red-400 text-sm mt-1">{errors.currency.message}</p>

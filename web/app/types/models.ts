@@ -7,6 +7,7 @@ export interface User {
   last_update: string;
   has_google_credentials?: boolean;
   is_google_credentials_valid?: boolean;
+  has_gmail_scope?: boolean;
 }
 
 export interface UserCreate {

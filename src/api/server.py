@@ -44,6 +44,8 @@ async def lifespan(_app_service: FastAPI) -> AsyncGenerator[None]:  # noqa: RUF0
     """Application lifespan manager"""
     # Startup
     os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1" if DEBUG else "0"
+    # Allow Google to grant fewer scopes than requested (e.g. user unchecks Gmail)
+    os.environ["OAUTHLIB_RELAX_TOKEN_SCOPE"] = "1"
     logger.info("Finance manager started")
     yield
 
@@ -189,6 +191,8 @@ def get_current_user_info(
     current_user: User = Depends(get_current_user),
 ) -> JSONResponse:
     """Get current user info including Google credentials status."""
+    creds = current_user.google_credentials
+    gmail_scope = "https://www.googleapis.com/auth/gmail.readonly"
     return JSONResponse(
         content={
             "id": current_user.id,
@@ -196,10 +200,9 @@ def get_current_user_info(
             "email": current_user.email,
             "bank": current_user.bank,
             "last_update": current_user.last_update.isoformat(),
-            "has_google_credentials": current_user.google_credentials is not None,
-            "is_google_credentials_valid": current_user.google_credentials.is_valid
-            if current_user.google_credentials
-            else False,
+            "has_google_credentials": creds is not None,
+            "is_google_credentials_valid": creds.is_valid if creds else False,
+            "has_gmail_scope": gmail_scope in creds.granted_scopes() if creds else False,
         }
     )
 
@@ -227,6 +230,8 @@ def update_current_user(
     session.commit()
     session.refresh(current_user)
 
+    creds = current_user.google_credentials
+    gmail_scope = "https://www.googleapis.com/auth/gmail.readonly"
     return JSONResponse(
         content={
             "id": current_user.id,
@@ -234,10 +239,9 @@ def update_current_user(
             "email": current_user.email,
             "bank": current_user.bank,
             "last_update": current_user.last_update.isoformat(),
-            "has_google_credentials": current_user.google_credentials is not None,
-            "is_google_credentials_valid": current_user.google_credentials.is_valid
-            if current_user.google_credentials
-            else False,
+            "has_google_credentials": creds is not None,
+            "is_google_credentials_valid": creds.is_valid if creds else False,
+            "has_gmail_scope": gmail_scope in creds.granted_scopes() if creds else False,
         }
     )
 
@@ -317,9 +321,11 @@ def google_callback(
 
     user = session.exec(select(User).where(User.email == email)).first()
 
-    if user:
-        # Update the expenses of the user now because
-        # is reactivated or new
+    granted_scopes = credentials_dict.get("granted_scopes") or []
+    gmail_granted = "https://www.googleapis.com/auth/gmail.readonly" in granted_scopes
+
+    if user and gmail_granted:
+        # Trigger email fetch for existing users who granted Gmail access
         get_user_messages.delay(user.id)
 
     if not user:
