@@ -1,6 +1,7 @@
 import type {
   Bank,
   CreateExpenseRequest,
+  EmailScanResponse,
   Expense,
   GenericResponse,
   User,
@@ -93,4 +94,11 @@ export const expensesApi = {
   },
 };
 
+// Email API
+export const emailApi = {
+  triggerScan: async (): Promise<EmailScanResponse> => {
+    const response = await api.post<EmailScanResponse>("/email/scan");
+    return response.data;
+  },
+};
 

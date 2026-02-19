@@ -51,7 +51,7 @@ def get_user_messages(user_id: int) -> None:
 
         credentials = md.rebuild_credentials(credentials_obj)
 
-        parser = EmailParser(user.bank)
+        parser = EmailParser(user.bank, user.email)
         try:
             parser.build_parser()
         except BankNotFoundError:

@@ -10,6 +10,7 @@ from db.models import Expense as DbExpense
 from db.models import Transference as DbTransference
 from email_service.manager import Message
 from utils.logger import get_logger
+from utils.config import EMAIL_SCAN_ALLOWED_EMAILS, EMAIL_SCAN_VERIFICATION_MODE, EMAIL_SCAN_VERIFICATION_REMITENTS
 from parsers.expense import Expense
 from parsers.transference import Transference
 from parsers.transaction_mapper import transference_to_db_model, expense_to_db_model
@@ -98,8 +99,9 @@ class EmailParser:
     bank: str
     bank_patterns: BankPatterns
 
-    def __init__(self, bank: str):
+    def __init__(self, bank: str, user_email: str | None = None):
         self.bank = bank
+        self.user_email = user_email.lower() if user_email else None
 
     def build_parser(self) -> None:
         """
@@ -175,11 +177,23 @@ class EmailParser:
         return remitent.lower().strip()
 
     def _is_expected_remitent(self, msg: Message) -> bool:
+        extracted_email = self._extract_email_from_remitent(msg.remitent)
         if not self.bank_patterns.remitents:
             return True
 
-        extracted_email = self._extract_email_from_remitent(msg.remitent)
-        return any(extracted_email == r.lower() for r in self.bank_patterns.remitents)
+        if any(extracted_email == r.lower() for r in self.bank_patterns.remitents):
+            return True
+
+        # Verification-only sender overrides for seeded test inboxes.
+        if (
+            EMAIL_SCAN_VERIFICATION_MODE
+            and self.user_email
+            and self.user_email in EMAIL_SCAN_ALLOWED_EMAILS
+            and extracted_email in EMAIL_SCAN_VERIFICATION_REMITENTS
+        ):
+            return True
+
+        return False
 
     def get_expense(self, msg: Message) -> Expense | None:
         if not self._is_expected_remitent(msg):

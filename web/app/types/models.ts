@@ -8,6 +8,7 @@ export interface User {
   has_google_credentials?: boolean;
   is_google_credentials_valid?: boolean;
   has_gmail_scope?: boolean;
+  verification_scan_enabled?: boolean;
 }
 
 export interface UserCreate {
@@ -60,4 +61,9 @@ export interface CreateExpenseRequest {
 
 export interface GenericResponse {
   msg: string;
+}
+
+export interface EmailScanResponse {
+  msg: string;
+  task_id: string;
 }

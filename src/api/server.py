@@ -30,7 +30,15 @@ from db.models import (
 )
 from db.service import get_session
 from oauth_service import google_oauth
-from utils.config import ACCESS_TOKEN_KEY, DEBUG, REDIS_HOST, REDIS_PORT, REFRESH_TOKEN_KEY
+from utils.config import (
+    ACCESS_TOKEN_KEY,
+    DEBUG,
+    EMAIL_SCAN_ALLOWED_EMAILS,
+    EMAIL_SCAN_VERIFICATION_MODE,
+    REDIS_HOST,
+    REDIS_PORT,
+    REFRESH_TOKEN_KEY,
+)
 from utils.logger import get_logger
 
 if TYPE_CHECKING:
@@ -74,6 +82,15 @@ app.add_middleware(
 
 
 redis_client = redis.Redis(host=REDIS_HOST, port=REDIS_PORT)
+
+
+def can_use_verification_scan(user: User) -> bool:
+    """Restrict manual scan controls to verification mode (and optional allowlist)."""
+    if not EMAIL_SCAN_VERIFICATION_MODE:
+        return False
+    if not EMAIL_SCAN_ALLOWED_EMAILS:
+        return True
+    return user.email.lower() in EMAIL_SCAN_ALLOWED_EMAILS
 
 
 @app.get("/health", response_class=JSONResponse)
@@ -203,6 +220,7 @@ def get_current_user_info(
             "has_google_credentials": creds is not None,
             "is_google_credentials_valid": creds.is_valid if creds else False,
             "has_gmail_scope": gmail_scope in creds.granted_scopes() if creds else False,
+            "verification_scan_enabled": can_use_verification_scan(current_user),
         }
     )
 
@@ -242,6 +260,7 @@ def update_current_user(
             "has_google_credentials": creds is not None,
             "is_google_credentials_valid": creds.is_valid if creds else False,
             "has_gmail_scope": gmail_scope in creds.granted_scopes() if creds else False,
+            "verification_scan_enabled": can_use_verification_scan(current_user),
         }
     )
 
@@ -279,6 +298,33 @@ def create_expense(
         status_code=status.HTTP_201_CREATED,
         content=new_expense.model_dump(mode="json"),
     )
+
+
+@app.post("/email/scan", status_code=status.HTTP_202_ACCEPTED)
+def trigger_manual_email_scan(current_user: User = Depends(get_current_user)) -> JSONResponse:
+    """
+    Queue an email scan manually for OAuth verification.
+    Enabled only when EMAIL_SCAN_VERIFICATION_MODE=true.
+    """
+    if not can_use_verification_scan(current_user):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
+
+    creds = current_user.google_credentials
+    gmail_scope = "https://www.googleapis.com/auth/gmail.readonly"
+
+    if not creds or not creds.is_valid:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Google credentials missing or invalid")
+
+    if gmail_scope not in creds.granted_scopes():
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Gmail read-only scope not granted")
+
+    try:
+        task = get_user_messages.delay(current_user.id)
+    except Exception:
+        logger.exception("Unable to queue manual scan for user %s", current_user.username)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to queue email scan")
+
+    return JSONResponse(content={"msg": "Email scan queued", "task_id": task.id})
 
 
 @app.get("/google-authorize")
@@ -324,10 +370,6 @@ def google_callback(
     granted_scopes = credentials_dict.get("granted_scopes") or []
     gmail_granted = "https://www.googleapis.com/auth/gmail.readonly" in granted_scopes
 
-    if user and gmail_granted:
-        # Trigger email fetch for existing users who granted Gmail access
-        get_user_messages.delay(user.id)
-
     if not user:
         user = User(username=email, email=email)
         session.add(user)
@@ -338,8 +380,16 @@ def google_callback(
 
     access = Token.create_access_token({"sub": user.username})
     refresh = Token.create_refresh_token({"sub": user.username})
+    scan_status = "skipped_scope"
+    if gmail_granted:
+        try:
+            get_user_messages.delay(user.id)
+            scan_status = "queued"
+        except Exception:
+            logger.exception("Unable to queue post-login scan for user %s", user.username)
+            scan_status = "queue_error"
 
-    response = RedirectResponse("/dashboard")
+    response = RedirectResponse(f"/dashboard?gmail_scan={scan_status}")
     set_access_cookie(response, access)
     set_refresh_cookie(response, refresh)
 
