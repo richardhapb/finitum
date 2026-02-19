@@ -2,6 +2,7 @@ import { Navbar } from "../components/layout/Navbar";
 import { ExpenseForm } from "../components/expenses/ExpenseForm";
 import { ExpenseList } from "../components/expenses/ExpenseList";
 import { ExpenseChart } from "../components/expenses/ExpenseChart";
+import { useEffect } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "react-router";
 import { authApi, emailApi } from "../lib/api";
@@ -9,6 +10,15 @@ import { authApi, emailApi } from "../lib/api";
 export default function DashboardPage() {
   const [searchParams] = useSearchParams();
   const gmailScanStatus = searchParams.get("gmail_scan");
+
+  useEffect(() => {
+    if (!gmailScanStatus) {
+      return;
+    }
+    const url = new URL(window.location.href);
+    url.searchParams.delete("gmail_scan");
+    window.history.replaceState({}, "", url.toString());
+  }, [gmailScanStatus]);
 
   const { data: user } = useQuery({
     queryKey: ["me"],
