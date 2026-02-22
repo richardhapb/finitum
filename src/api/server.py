@@ -1,4 +1,3 @@
-from tasks.email_fetch import get_user_messages
 import json
 import os
 from collections.abc import AsyncGenerator
@@ -17,7 +16,6 @@ from starlette.middleware.cors import CORSMiddleware
 from api.jwt import Token, get_current_user, set_access_cookie, set_refresh_cookie
 from db.models import (
     Expense as DBExpense,
-    UserUpdate,
 )
 from db.models import (
     ExpenseCreate,
@@ -27,9 +25,11 @@ from db.models import (
     UserLogin,
     UserLoginResponse,
     UserResponse,
+    UserUpdate,
 )
 from db.service import get_session
 from oauth_service import google_oauth
+from tasks.email_fetch import get_user_messages
 from utils.config import (
     ACCESS_TOKEN_KEY,
     DEBUG,
@@ -53,7 +53,7 @@ async def lifespan(_app_service: FastAPI) -> AsyncGenerator[None]:  # noqa: RUF0
     # Startup
     os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1" if DEBUG else "0"
     # Allow Google to grant fewer scopes than requested (e.g. user unchecks Gmail)
-    os.environ["OAUTHLIB_RELAX_TOKEN_SCOPE"] = "1"
+    os.environ["OAUTHLIB_RELAX_TOKEN_SCOPE"] = "1"  # noqa: S105
     logger.info("Finance manager started")
     yield
 
@@ -76,7 +76,7 @@ app.add_middleware(
     cast("_MiddlewareFactory", CORSMiddleware),
     allow_origins=_allowed_origins,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_methods=["GET", "POST", "OPTIONS", "DELETE"],
     allow_headers=["Content-Type", "Authorization"],
 )
 
@@ -300,6 +300,19 @@ def create_expense(
     )
 
 
+@app.delete("/expenses/{id}")
+def delete_expense(
+    id: int, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)
+) -> JSONResponse:
+    """Get all expenses for the current user."""
+    expense = session.exec(select(DBExpense).where(DBExpense.user_id == current_user.id, DBExpense.id == id)).one()
+    if not expense:
+        HTTPException(detail=f"Expense not found: {id}", status_code=status.HTTP_404_NOT_FOUND)
+    session.delete(expense)
+    session.commit()
+    return JSONResponse(content={"msg": "OK"})
+
+
 @app.post("/email/scan", status_code=status.HTTP_202_ACCEPTED)
 def trigger_manual_email_scan(current_user: User = Depends(get_current_user)) -> JSONResponse:
     """
@@ -320,9 +333,11 @@ def trigger_manual_email_scan(current_user: User = Depends(get_current_user)) ->
 
     try:
         task = get_user_messages.delay(current_user.id)
-    except Exception:
+    except Exception as e:
         logger.exception("Unable to queue manual scan for user %s", current_user.username)
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to queue email scan")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to queue email scan"
+        ) from e
 
     return JSONResponse(content={"msg": "Email scan queued", "task_id": task.id})
 

@@ -92,6 +92,11 @@ export const expensesApi = {
     const response = await api.post<Expense>("/expenses", expense);
     return response.data;
   },
+
+  delete: async (id: Number): Promise<GenericResponse> => {
+    const response = await api.delete<GenericResponse>(`/expenses/${id}`);
+    return response.data;
+  },
 };
 
 // Email API
