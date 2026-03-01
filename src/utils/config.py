@@ -13,7 +13,10 @@ EMAIL_SCAN_ALLOWED_EMAILS = {
     email.strip().lower() for email in os.getenv("EMAIL_SCAN_ALLOWED_EMAILS", "").split(",") if email.strip()
 }
 EMAIL_SCAN_VERIFICATION_REMITENTS = {
-    remitent.strip().lower() for remitent in os.getenv("EMAIL_SCAN_VERIFICATION_REMITENTS", "").split(",") if remitent.strip()
+    remitent.strip().lower()
+    for remitent in os.getenv("EMAIL_SCAN_VERIFICATION_REMITENTS", "").split(",")
+    if remitent.strip()
 }
+WEB_ADDRESS = os.getenv("WEB_ADDRESS", "http://localhost:5173")
 APP_NAME = "finitum"
 TZ = pytz.timezone("America/Santiago")

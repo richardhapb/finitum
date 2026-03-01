@@ -185,15 +185,14 @@ class EmailParser:
             return True
 
         # Verification-only sender overrides for seeded test inboxes.
-        if (
-            EMAIL_SCAN_VERIFICATION_MODE
-            and self.user_email
-            and self.user_email in EMAIL_SCAN_ALLOWED_EMAILS
-            and extracted_email in EMAIL_SCAN_VERIFICATION_REMITENTS
-        ):
-            return True
-
-        return False
+        return all(
+            {
+                EMAIL_SCAN_VERIFICATION_MODE is not None,
+                self.user_email,
+                self.user_email in EMAIL_SCAN_ALLOWED_EMAILS,
+                extracted_email in EMAIL_SCAN_VERIFICATION_REMITENTS,
+            }
+        )
 
     def get_expense(self, msg: Message) -> Expense | None:
         if not self._is_expected_remitent(msg):

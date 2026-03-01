@@ -38,6 +38,7 @@ from utils.config import (
     REDIS_HOST,
     REDIS_PORT,
     REFRESH_TOKEN_KEY,
+    WEB_ADDRESS,
 )
 from utils.logger import get_logger
 
@@ -404,7 +405,7 @@ def google_callback(
             logger.exception("Unable to queue post-login scan for user %s", user.username)
             scan_status = "queue_error"
 
-    response = RedirectResponse(f"/dashboard?gmail_scan={scan_status}")
+    response = RedirectResponse(f"{WEB_ADDRESS if DEBUG else ''}/dashboard?gmail_scan={scan_status}")
     set_access_cookie(response, access)
     set_refresh_cookie(response, refresh)
 
