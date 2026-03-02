@@ -6,6 +6,7 @@ from typing import Self
 from requests.exceptions import JSONDecodeError
 from sqlmodel import Session
 
+from db.categories import resolve_category_for_user_text
 from db.models import Expense as DbExpense
 from db.models import Transference as DbTransference
 from email_service.manager import Message
@@ -255,7 +256,8 @@ def save_expense(
         expense = parser.get_expense(msg)
         if not expense:
             return None
-        db_expense = expense_to_db_model(expense)
+        category = resolve_category_for_user_text(session, user_id, expense.commerce, expense.category.value)
+        db_expense = expense_to_db_model(expense, category.id)
         db_expense.user_id = user_id
         session.add(db_expense)
         session.commit()

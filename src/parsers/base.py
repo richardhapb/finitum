@@ -1,8 +1,8 @@
-import json
 import unicodedata
 from datetime import datetime
 from enum import Enum
 
+from category_catalog import get_builtin_category_by_parser_key
 from utils.logger import get_logger
 
 logger = get_logger()
@@ -40,36 +40,15 @@ class ExpenseCategory(Enum):
     PURIFIED_WATER = "purified_water"
 
 
-cat_json = ""
-
-with open("categories.json", encoding="utf-8") as f:
-    cat_json = f.read()
-CATEGORY_KEYWORDS_RAW: dict[str, list[str]] = json.loads(cat_json)
+CATEGORY_KEYWORDS_RAW: dict[str, list[str]] = {
+    parser_key: list(definition.patterns)
+    for parser_key, definition in get_builtin_category_by_parser_key().items()
+}
 
 # Map category display name -> Enum
 CATEGORY_NAME_TO_ENUM: dict[str, ExpenseCategory] = {
-    "Food": ExpenseCategory.FOOD,
-    "Education": ExpenseCategory.EDUCATION,
-    "Transport": ExpenseCategory.TRANSPORT,
-    "Services": ExpenseCategory.SERVICES,
-    "Transfers": ExpenseCategory.TRANSFERS,
-    "Clothing": ExpenseCategory.CLOTHING,
-    "Entertainment": ExpenseCategory.ENTERTAINMENT,
-    "Sports": ExpenseCategory.SPORTS,
-    "Loan": ExpenseCategory.LOAN,
-    "ATM_withdrawal": ExpenseCategory.ATM_WITHDRAWAL,
-    "Investments": ExpenseCategory.INVESTMENTS,
-    "Housing": ExpenseCategory.HOUSING,
-    "External_food": ExpenseCategory.EXTERNAL_FOOD,
-    "Recreation": ExpenseCategory.RECREATION,
-    "Online": ExpenseCategory.ONLINE,
-    "Commissions": ExpenseCategory.COMMISSIONS,
-    "Travel": ExpenseCategory.TRAVEL,
-    "Health": ExpenseCategory.HEALTH,
-    "Family": ExpenseCategory.FAMILY,
-    "Laundry": ExpenseCategory.LAUNDRY,
-    "Books": ExpenseCategory.BOOKS,
-    "Purified_water": ExpenseCategory.PURIFIED_WATER,
+    parser_key: ExpenseCategory(definition.slug)
+    for parser_key, definition in get_builtin_category_by_parser_key().items()
 }
 
 

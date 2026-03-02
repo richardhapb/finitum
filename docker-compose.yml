@@ -7,7 +7,11 @@ services:
         command: granian --interface asgi --workers ${API_WORKERS:-2} --host 0.0.0.0 --port 9090 api.server:app --access-log --reload
         env_file: .env
         # ports defined in docker-compose.override.yml (dev) or docker-compose.prod.yml (prod)
-        volumes: ["./src:/app/src", "./alembic:/app/alembic"]
+        volumes:
+            - ./src:/app/src
+            - ./alembic:/app/alembic
+            - ./categories.json:/app/categories.json
+            - ./category_labels.es.json:/app/category_labels.es.json
         depends_on:
             db: { condition: service_healthy }
             redis: { condition: service_healthy }
@@ -22,7 +26,10 @@ services:
         image: finitum-api:latest
         command: celery -A tasks.app:celery worker --loglevel=DEBUG --concurrency=${CELERY_CONCURRENCY:-2}
         env_file: .env
-        volumes: ["./src:/app/src"]
+        volumes:
+            - ./src:/app/src
+            - ./categories.json:/app/categories.json
+            - ./category_labels.es.json:/app/category_labels.es.json
         depends_on:
             db: { condition: service_healthy }
             redis: { condition: service_healthy }
@@ -41,6 +48,8 @@ services:
 
         volumes:
             - ./src:/app/src
+            - ./categories.json:/app/categories.json
+            - ./category_labels.es.json:/app/category_labels.es.json
 
         restart: unless-stopped
 

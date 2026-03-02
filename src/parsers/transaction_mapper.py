@@ -3,7 +3,7 @@ from db.models import Expense as DBExpense, Transference as DBTransference
 from parsers.expense import Expense
 
 
-def expense_to_db_model(expense: Expense) -> DBExpense:
+def expense_to_db_model(expense: Expense, category_id: int) -> DBExpense:
     """Convert to database model"""
     from db.models import Expense as DBExpense
 
@@ -11,7 +11,7 @@ def expense_to_db_model(expense: Expense) -> DBExpense:
         commerce=expense.commerce,
         amount=expense.value,
         currency=expense.currency,
-        category=expense.category,
+        category_id=category_id,
         date=expense.date,
         description="Extracted from email",
     )

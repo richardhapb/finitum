@@ -1,3 +1,4 @@
+import json
 import os
 import secrets
 from google.oauth2.credentials import Credentials
@@ -46,8 +47,8 @@ class GoogleClient:
             credentials = None
         self.credentials = credentials
 
-    def authorize_oauth2(self, state: str | None) -> tuple[str, str]:
-        """Returns authorization_url and state"""
+    def authorize_oauth2(self, state: str | None) -> tuple[str, str, str | None]:
+        """Returns authorization_url, state, and PKCE code verifier."""
         if state is None:
             state = secrets.token_urlsafe(32)
 
@@ -65,13 +66,14 @@ class GoogleClient:
         flow = google_auth_oauthlib.flow.Flow.from_client_config(
             CLIENT_CONFIG,
             scopes=SCOPES,
+            autogenerate_code_verifier=True,
         )
 
         flow.redirect_uri = self._redirect_uri
 
         # Generate URL for request to Google's OAuth 2.0 server.
         # Use kwargs to set optional request parameters.
-        return flow.authorization_url(
+        authorization_url, returned_state = flow.authorization_url(
             # Recommended, enable offline access so that you can refresh an access token without
             # re-prompting the user for permission. Recommended for web server apps.
             access_type="offline",
@@ -81,12 +83,21 @@ class GoogleClient:
             # Optional, set prompt to 'consent' will prompt the user for consent
             prompt="consent",
         )
+        return authorization_url, returned_state, getattr(flow, "code_verifier", None)
 
     def get_credentials(
-        self, state: str, authorization_url: str, /, user: User | None = None
+        self,
+        state: str,
+        authorization_url: str,
+        /,
+        *,
+        code_verifier: str | None = None,
+        user: User | None = None,
     ) -> dict[str, str | list[str] | None]:
         flow = google_auth_oauthlib.flow.Flow.from_client_config(CLIENT_CONFIG, scopes=SCOPES, state=state)
         flow.redirect_uri = self._redirect_uri
+        if code_verifier:
+            flow.code_verifier = code_verifier
 
         # Use the authorization server's response to fetch the OAuth 2.0 tokens.
         flow.fetch_token(authorization_response=authorization_url)
@@ -135,19 +146,40 @@ class GoogleClient:
 
 
 # Functions for state management
-def generate_oauth_state(redis_client: Redis) -> str:
-    """Generate a unique state token and store it in Redis with expiration."""
+def generate_oauth_state() -> str:
+    """Generate a unique OAuth state token."""
     state = secrets.token_urlsafe(32)
-    # Store in Redis with 10 minute expiration
-    redis_client.setex(f"oauth_state:{state}", 600, "1")
     return state
 
 
-def validate_oauth_state(state: str, redis_client: Redis) -> bool:
-    """Validate a state token from Redis and delete it if valid."""
+def store_oauth_state(redis_client: Redis, state: str, code_verifier: str | None) -> None:
+    """Persist OAuth state metadata for the callback exchange."""
+    payload = json.dumps({"code_verifier": code_verifier})
+    redis_client.setex(f"oauth_state:{state}", 600, payload)
+
+
+def consume_oauth_state(state: str, redis_client: Redis) -> dict[str, str | None] | None:
+    """Load OAuth state metadata from Redis and delete it if valid."""
     key = f"oauth_state:{state}"
-    valid = redis_client.exists(key)
-    if valid:
-        # Delete after use (one-time use)
-        redis_client.delete(key)
-    return bool(valid)
+    raw_payload = redis_client.get(key)
+    if raw_payload is None:
+        return None
+
+    redis_client.delete(key)
+
+    if isinstance(raw_payload, bytes):
+        raw_payload = raw_payload.decode("utf-8")
+
+    try:
+        payload = json.loads(raw_payload)
+    except json.JSONDecodeError:
+        return {"code_verifier": None}
+
+    if not isinstance(payload, dict):
+        return {"code_verifier": None}
+
+    code_verifier = payload.get("code_verifier")
+    if code_verifier is not None and not isinstance(code_verifier, str):
+        code_verifier = None
+
+    return {"code_verifier": code_verifier}

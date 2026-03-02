@@ -40,12 +40,15 @@ export interface UserLoginResponse {
 
 // Expense types
 export interface Expense {
-  id: string;
-  user_id: string;
+  id: number;
+  user_id: number;
   commerce: string;
   amount: number;
   currency: string;
-  category: string;
+  category_id: number;
+  category_slug: string;
+  category_name: string;
+  category_is_custom: boolean;
   date: string;
   description?: string;
 }
@@ -54,9 +57,24 @@ export interface CreateExpenseRequest {
   commerce: string;
   amount: number;
   currency: string;
-  category: string;
+  category_id: number;
   date?: string;
   description?: string;
+}
+
+export interface Category {
+  id: number;
+  slug: string;
+  name: string;
+  name_en: string;
+  name_es: string;
+  is_custom: boolean;
+  patterns: string[];
+}
+
+export interface CreateCategoryRequest {
+  name: string;
+  pattern?: string;
 }
 
 export interface GenericResponse {

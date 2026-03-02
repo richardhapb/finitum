@@ -10,12 +10,23 @@ import redis
 from fastapi import Depends, FastAPI, Request, Response, status
 from fastapi.exceptions import HTTPException
 from fastapi.responses import JSONResponse, RedirectResponse
+from oauthlib.oauth2.rfc6749.errors import OAuth2Error
 from sqlmodel import Session, or_, select
 from starlette.middleware.cors import CORSMiddleware
 
 from api.jwt import Token, get_current_user, set_access_cookie, set_refresh_cookie
+from db.categories import (
+    create_custom_category,
+    get_category_patterns,
+    get_visible_category,
+    list_categories_for_user,
+)
 from db.models import (
+    Category,
+    CategoryCreate,
+    CategoryRead,
     Expense as DBExpense,
+    ExpenseRead,
 )
 from db.models import (
     ExpenseCreate,
@@ -77,7 +88,7 @@ app.add_middleware(
     cast("_MiddlewareFactory", CORSMiddleware),
     allow_origins=_allowed_origins,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "OPTIONS", "DELETE"],
+    allow_methods=["GET", "POST", "PATCH", "OPTIONS", "DELETE"],
     allow_headers=["Content-Type", "Authorization"],
 )
 
@@ -92,6 +103,40 @@ def can_use_verification_scan(user: User) -> bool:
     if not EMAIL_SCAN_ALLOWED_EMAILS:
         return True
     return user.email.lower() in EMAIL_SCAN_ALLOWED_EMAILS
+
+
+def serialize_category(category: Category, patterns: list[str] | None = None) -> CategoryRead:
+    return CategoryRead(
+        id=category.id,
+        slug=category.slug,
+        name=category.name_es,
+        name_en=category.name_en,
+        name_es=category.name_es,
+        is_custom=category.user_id is not None,
+        patterns=patterns or [],
+    )
+
+
+def serialize_expense(expense: DBExpense, category: Category) -> ExpenseRead:
+    return ExpenseRead(
+        id=expense.id,
+        user_id=expense.user_id,
+        commerce=expense.commerce,
+        amount=expense.amount,
+        currency=expense.currency,
+        category_id=expense.category_id,
+        category_slug=category.slug,
+        category_name=category.name_es,
+        category_is_custom=category.user_id is not None,
+        date=expense.date,
+        description=expense.description,
+    )
+
+
+def require_user_id(user: User) -> int:
+    if user.id is None:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Authenticated user is invalid")
+    return user.id
 
 
 @app.get("/health", response_class=JSONResponse)
@@ -266,39 +311,75 @@ def update_current_user(
     )
 
 
-@app.get("/expenses")
+@app.get("/categories", response_model=list[CategoryRead])
+def get_categories(
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+) -> list[CategoryRead]:
+    categories = list_categories_for_user(session, require_user_id(current_user))
+    category_ids = [category.id for category in categories if category.id is not None]
+    patterns_by_category_id = get_category_patterns(session, category_ids)
+    return [
+        serialize_category(category, patterns_by_category_id.get(category.id or 0, []))
+        for category in categories
+    ]
+
+
+@app.post("/categories", response_model=CategoryRead, status_code=status.HTTP_201_CREATED)
+def create_category(
+    category_data: CategoryCreate,
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+) -> CategoryRead:
+    try:
+        category = create_custom_category(session, require_user_id(current_user), category_data)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    patterns_by_category_id = get_category_patterns(session, [category.id] if category.id is not None else [])
+    return serialize_category(category, patterns_by_category_id.get(category.id or 0, []))
+
+
+@app.get("/expenses", response_model=list[ExpenseRead])
 def get_expenses(
     current_user: User = Depends(get_current_user), session: Session = Depends(get_session)
-) -> JSONResponse:
+) -> list[ExpenseRead]:
     """Get all expenses for the current user."""
-    expenses = session.exec(select(DBExpense).where(DBExpense.user_id == current_user.id)).all()
-    # Return array directly for easier frontend consumption
-    return JSONResponse(content=[expense.model_dump(mode="json") for expense in expenses])
+    user_id = require_user_id(current_user)
+    expenses = session.exec(
+        select(DBExpense, Category)
+        .join(Category, DBExpense.category_id == Category.id)
+        .where(DBExpense.user_id == user_id)
+    ).all()
+    return [serialize_expense(expense, category) for expense, category in expenses]
 
 
-@app.post("/expenses", status_code=status.HTTP_201_CREATED)
+@app.post("/expenses", response_model=ExpenseRead, status_code=status.HTTP_201_CREATED)
 def create_expense(
     expense_data: ExpenseCreate,
     current_user: User = Depends(get_current_user),
     session: Session = Depends(get_session),
-) -> JSONResponse:
+) -> ExpenseRead:
     """Create a new expense for the current user."""
+    user_id = require_user_id(current_user)
+    category = get_visible_category(session, expense_data.category_id, user_id)
+    if category is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Category not found")
+    if category.id is None:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Category is invalid")
+
     new_expense = DBExpense(
-        user_id=current_user.id,
+        user_id=user_id,
         commerce=expense_data.commerce,
         amount=expense_data.amount,
         currency=expense_data.currency,
-        category=expense_data.category,
+        category_id=category.id,
         date=expense_data.date if expense_data.date else datetime.now(),
         description=expense_data.description,
     )
     session.add(new_expense)
     session.commit()
     session.refresh(new_expense)
-    return JSONResponse(
-        status_code=status.HTTP_201_CREATED,
-        content=new_expense.model_dump(mode="json"),
-    )
+    return serialize_expense(new_expense, category)
 
 
 @app.delete("/expenses/{id}")
@@ -306,7 +387,8 @@ def delete_expense(
     id: int, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)
 ) -> JSONResponse:
     """Get all expenses for the current user."""
-    expense = session.exec(select(DBExpense).where(DBExpense.user_id == current_user.id, DBExpense.id == id)).one()
+    user_id = require_user_id(current_user)
+    expense = session.exec(select(DBExpense).where(DBExpense.user_id == user_id, DBExpense.id == id)).one()
     if not expense:
         HTTPException(detail=f"Expense not found: {id}", status_code=status.HTTP_404_NOT_FOUND)
     session.delete(expense)
@@ -345,9 +427,10 @@ def trigger_manual_email_scan(current_user: User = Depends(get_current_user)) ->
 
 @app.get("/google-authorize")
 def auth_google() -> RedirectResponse:
-    state = google_oauth.generate_oauth_state(redis_client)
+    state = google_oauth.generate_oauth_state()
     client = google_oauth.GoogleClient()
-    auth_url, _ = client.authorize_oauth2(state=state)
+    auth_url, returned_state, code_verifier = client.authorize_oauth2(state=state)
+    google_oauth.store_oauth_state(redis_client, returned_state, code_verifier)
     return RedirectResponse(auth_url)
 
 
@@ -362,13 +445,22 @@ def google_callback(
         logger.error("OAuth error: %s", error)
         raise HTTPException(status_code=400, detail=error)
 
-    if not state or not google_oauth.validate_oauth_state(state, redis_client):
+    oauth_state = google_oauth.consume_oauth_state(state, redis_client) if state else None
+    if not state or oauth_state is None:
         logger.debug("Invalid state: %s", state)
         raise HTTPException(status_code=400, detail="Invalid state parameter")
 
     client = google_oauth.GoogleClient()
     authorization_url = str(request.url)
-    credentials_dict = client.get_credentials(state, authorization_url)
+    try:
+        credentials_dict = client.get_credentials(
+            state,
+            authorization_url,
+            code_verifier=oauth_state.get("code_verifier"),
+        )
+    except OAuth2Error as exc:
+        logger.exception("OAuth token exchange failed")
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     id_token = credentials_dict.get("id_token")
     if not id_token:

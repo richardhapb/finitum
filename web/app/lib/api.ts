@@ -1,5 +1,7 @@
 import type {
   Bank,
+  Category,
+  CreateCategoryRequest,
   CreateExpenseRequest,
   EmailScanResponse,
   Expense,
@@ -99,6 +101,18 @@ export const expensesApi = {
   },
 };
 
+export const categoriesApi = {
+  getAll: async (): Promise<Category[]> => {
+    const response = await api.get<Category[]>("/categories");
+    return response.data;
+  },
+
+  create: async (payload: CreateCategoryRequest): Promise<Category> => {
+    const response = await api.post<Category>("/categories", payload);
+    return response.data;
+  },
+};
+
 // Email API
 export const emailApi = {
   triggerScan: async (): Promise<EmailScanResponse> => {
@@ -106,4 +120,3 @@ export const emailApi = {
     return response.data;
   },
 };
-

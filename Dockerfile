@@ -24,7 +24,7 @@ RUN useradd -m app && \
     mkdir -p /app/src /data
 
 COPY --from=builder /app/.venv /app/.venv
-COPY pyproject.toml alembic.ini categories.json ./
+COPY pyproject.toml alembic.ini categories.json category_labels.es.json ./
 COPY --chown=app:app src src
 
 USER app

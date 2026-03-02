@@ -94,7 +94,7 @@ class Expense(SQLModel, table=True):
     commerce: str = Field(index=True)
     amount: float = Field()
     currency: Currency = Field(default=Currency.CLP)
-    category: ExpenseCategory = Field(default=ExpenseCategory.GENERAL)
+    category_id: int = Field(foreign_key="categories.id", index=True)
     date: datetime = Field(default_factory=datetime.now)
     description: str | None = Field(default=None)
 
@@ -111,14 +111,64 @@ class Transference(SQLModel, table=True):
     description: str | None = Field(default=None)
 
 
+class Category(SQLModel, table=True):
+    __tablename__ = "categories"
+
+    id: int | None = Field(default=None, primary_key=True)
+    # If it is not associated to an user, is a global category
+    user_id: int | None = Field(default=None, foreign_key="users.id", index=True)
+    slug: str = Field(index=True, unique=True)
+    name_en: str
+    name_es: str
+
+
+class CategoryPattern(SQLModel, table=True):
+    __tablename__ = "category_patterns"
+
+    id: int | None = Field(default=None, primary_key=True)
+    category_id: int = Field(foreign_key="categories.id")
+    pattern: str
+
+
+class CategoryCreate(SQLModel):
+    name: str
+    pattern: str | None = None
+
+
+class CategoryRead(SQLModel):
+    id: int
+    slug: str
+    name: str
+    name_en: str
+    name_es: str
+    is_custom: bool
+    patterns: list[str] = []
+
+    model_config: ClassVar[dict[str, Any]] = {"from_attributes": True}
+
+
 class ExpenseCreate(SQLModel):
     """Model for creating a new expense via API."""
 
     commerce: str
     amount: float
     currency: Currency = Currency.CLP
-    category: ExpenseCategory = ExpenseCategory.GENERAL
+    category_id: int
     date: datetime | None = None
+    description: str | None = None
+
+
+class ExpenseRead(SQLModel):
+    id: int
+    user_id: int
+    commerce: str
+    amount: float
+    currency: Currency
+    category_id: int
+    category_slug: str
+    category_name: str
+    category_is_custom: bool
+    date: datetime
     description: str | None = None
 
 

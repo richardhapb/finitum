@@ -11,6 +11,7 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import { expensesApi } from '../../lib/api';
+import { DEFAULT_LOCALE, getExpenseCategoryName } from '../../lib/categories';
 import type { Expense } from '../../types/models';
 
 const COLORS = [
@@ -29,17 +30,11 @@ const COLORS = [
 ];
 
 const formatCurrency = (value: number, currency = 'CLP') => {
-  if (currency === 'USD') {
+  const normalizedCurrency = currency.toUpperCase();
+  if (normalizedCurrency === 'USD') {
     return `$${value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   }
-  return `$${value.toLocaleString('es-CL', { maximumFractionDigits: 0 })}`;
-};
-
-const formatCategoryName = (name: string) => {
-  return name
-    .toLowerCase()
-    .replace(/_/g, ' ')
-    .replace(/\b\w/g, (c) => c.toUpperCase());
+  return `$${value.toLocaleString(DEFAULT_LOCALE, { maximumFractionDigits: 0 })}`;
 };
 
 export function ExpenseChart() {
@@ -49,7 +44,7 @@ export function ExpenseChart() {
   });
 
   if (isLoading) {
-    return <div className="text-center py-8 text-gray-400">Loading charts...</div>;
+    return <div className="text-center py-8 text-gray-400">Cargando graficos...</div>;
   }
 
   if (!expenses || expenses.length === 0) {
@@ -57,15 +52,20 @@ export function ExpenseChart() {
   }
 
   // Group by category and sort by value descending
-  const categoryData = expenses.reduce((acc: Record<string, number>, expense: Expense) => {
-    const category = expense.category || 'OTHER';
-    acc[category] = (acc[category] || 0) + expense.amount;
+  const categoryData = expenses.reduce((acc: Record<string, { name: string; value: number }>, expense: Expense) => {
+    const categoryKey = expense.category_slug || getExpenseCategoryName(expense);
+    const currentCategory = acc[categoryKey] || {
+      name: getExpenseCategoryName(expense),
+      value: 0,
+    };
+    currentCategory.value += expense.amount;
+    acc[categoryKey] = currentCategory;
     return acc;
   }, {});
 
-  const categoryChartData = Object.entries(categoryData)
-    .map(([name, value], index) => ({
-      name: formatCategoryName(name),
+  const categoryChartData = Object.values(categoryData)
+    .map(({ name, value }, index) => ({
+      name,
       value: Number(value.toFixed(2)),
       fill: COLORS[index % COLORS.length],
       stroke: "#1f2937",
@@ -87,7 +87,7 @@ export function ExpenseChart() {
     .slice(-6)
     .map(([month, amount]) => {
       const [year, monthNum] = month.split('-');
-      const monthName = new Date(parseInt(year), parseInt(monthNum) - 1).toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+      const monthName = new Date(parseInt(year), parseInt(monthNum) - 1).toLocaleDateString(DEFAULT_LOCALE, { month: 'short', year: '2-digit' });
       return {
         month: monthName,
         amount: Number(amount.toFixed(2)),
@@ -106,19 +106,19 @@ export function ExpenseChart() {
       {/* Stats Summary */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="bg-gray-800 text-white p-4 rounded-lg shadow-lg border border-gray-700">
-          <p className="text-sm text-gray-400">Total Expenses</p>
+          <p className="text-sm text-gray-400">Gasto total</p>
           <p className="text-2xl font-bold text-white">{formatCurrency(total)}</p>
         </div>
         <div className="bg-gray-800 text-white p-4 rounded-lg shadow-lg border border-gray-700">
-          <p className="text-sm text-gray-400">This Month</p>
+          <p className="text-sm text-gray-400">Este mes</p>
           <p className="text-2xl font-bold text-blue-400">{formatCurrency(thisMonthTotal)}</p>
         </div>
         <div className="bg-gray-800 text-white p-4 rounded-lg shadow-lg border border-gray-700">
-          <p className="text-sm text-gray-400">Transactions</p>
+          <p className="text-sm text-gray-400">Transacciones</p>
           <p className="text-2xl font-bold text-white">{expenses.length}</p>
         </div>
         <div className="bg-gray-800 text-white p-4 rounded-lg shadow-lg border border-gray-700">
-          <p className="text-sm text-gray-400">Average</p>
+          <p className="text-sm text-gray-400">Promedio</p>
           <p className="text-2xl font-bold text-white">{formatCurrency(total / expenses.length)}</p>
         </div>
       </div>
@@ -127,7 +127,7 @@ export function ExpenseChart() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Monthly Spending Chart */}
         <div className="bg-gray-800 text-white p-6 rounded-lg shadow-lg border border-gray-700">
-          <h3 className="text-lg font-semibold mb-4">Monthly Spending</h3>
+          <h3 className="text-lg font-semibold mb-4">Gasto mensual</h3>
           <ResponsiveContainer width="100%" height={280}>
             <BarChart data={monthlyChartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#374151" vertical={false} />
@@ -145,7 +145,7 @@ export function ExpenseChart() {
               />
               <Tooltip
                 cursor={{ fill: '#374151', opacity: 0.3 }}
-                formatter={(value: number | undefined) => value != null ? [formatCurrency(value), 'Amount'] : ['', '']}
+                formatter={(value: number | undefined) => value != null ? [formatCurrency(value), 'Monto'] : ['', '']}
                 contentStyle={{
                   backgroundColor: '#1f2937',
                   border: '1px solid #374151',
@@ -161,7 +161,7 @@ export function ExpenseChart() {
 
         {/* Category Breakdown - Pie Chart */}
         <div className="bg-gray-800 text-white p-6 rounded-lg shadow-lg border border-gray-700">
-          <h3 className="text-lg font-semibold mb-4">Spending by Category</h3>
+          <h3 className="text-lg font-semibold mb-4">Gasto por categoria</h3>
           <div className="flex items-center">
             <div className="w-1/2">
               <ResponsiveContainer width="100%" height={280}>
@@ -212,7 +212,7 @@ export function ExpenseChart() {
                   );
                 })}
                 {categoryChartData.length > 8 && (
-                  <p className="text-xs text-gray-500 pt-1">+{categoryChartData.length - 8} more categories</p>
+                  <p className="text-xs text-gray-500 pt-1">+{categoryChartData.length - 8} categorias mas</p>
                 )}
               </div>
             </div>
@@ -222,7 +222,7 @@ export function ExpenseChart() {
 
       {/* Top Categories Bar */}
       <div className="bg-gray-800 text-white p-6 rounded-lg shadow-lg border border-gray-700">
-        <h3 className="text-lg font-semibold mb-4">Top Spending Categories</h3>
+        <h3 className="text-lg font-semibold mb-4">Categorias con mas gasto</h3>
         <div className="space-y-3">
           {categoryChartData.slice(0, 5).map((item, index) => {
             const percent = (item.value / total) * 100;

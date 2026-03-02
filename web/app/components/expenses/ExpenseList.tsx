@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { expensesApi } from '../../lib/api';
+import { DEFAULT_LOCALE, getExpenseCategoryName } from '../../lib/categories';
 import type { Expense } from '../../types/models';
 import { useMemo } from 'react';
 import { queryClient } from '../../lib/queryClient';
@@ -24,20 +25,14 @@ const CATEGORY_COLORS: Record<string, string> = {
   GENERAL: 'bg-slate-500/20 text-slate-400',
 };
 
-const formatCategoryName = (name: string) =>
-  name
-    .toLowerCase()
-    .replace(/_/g, ' ')
-    .replace(/\b\w/g, (c) => c.toUpperCase());
-
 async function handleDelete(expenseId: number) {
-  if (!window.confirm('Are you sure you want to delete this expense?')) return;
+  if (!window.confirm('Quieres eliminar este gasto?')) return;
   try {
     await expensesApi.delete(expenseId); 
     queryClient.invalidateQueries({ queryKey: ['expenses'] });
   } catch (error) {
     console.error('Failed to delete expense:', error);
-    alert('Could not delete expense. Please try again.');
+    alert('No se pudo eliminar el gasto. Intentalo de nuevo.');
   }
 }
 
@@ -54,12 +49,13 @@ export function ExpenseList() {
   }, [expenses]);
 
   const formatCurrency = (amount: number, currency: string) => {
-    if (currency === 'CLP') {
-      return `$${amount.toLocaleString('es-CL', { maximumFractionDigits: 0 })}`;
+    const normalizedCurrency = currency.toUpperCase();
+    if (normalizedCurrency === 'CLP') {
+      return `$${amount.toLocaleString(DEFAULT_LOCALE, { maximumFractionDigits: 0 })}`;
     }
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
-      currency,
+      currency: normalizedCurrency,
     }).format(amount);
   };
 
@@ -69,18 +65,18 @@ export function ExpenseList() {
     const yesterday = new Date(today);
     yesterday.setDate(yesterday.getDate() - 1);
 
-    if (date.toDateString() === today.toDateString()) return 'Today';
-    if (date.toDateString() === yesterday.toDateString()) return 'Yesterday';
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    if (date.toDateString() === today.toDateString()) return 'Hoy';
+    if (date.toDateString() === yesterday.toDateString()) return 'Ayer';
+    return date.toLocaleDateString(DEFAULT_LOCALE, { month: 'short', day: 'numeric' });
   };
 
-  const getCategoryStyle = (category: string) =>
-    CATEGORY_COLORS[category.toUpperCase()] || CATEGORY_COLORS.GENERAL;
+  const getCategoryStyle = (categorySlug: string) =>
+    CATEGORY_COLORS[categorySlug.toUpperCase()] || CATEGORY_COLORS.GENERAL;
 
   if (isLoading) {
     return (
       <div className="bg-gray-800 rounded-lg border border-gray-700 p-8">
-        <div className="text-center text-gray-400">Loading expenses...</div>
+        <div className="text-center text-gray-400">Cargando gastos...</div>
       </div>
     );
   }
@@ -89,7 +85,7 @@ export function ExpenseList() {
     return (
       <div className="bg-gray-800 rounded-lg border border-gray-700 p-8">
         <div className="text-center text-red-400">
-          Error loading expenses: {(error as Error).message}
+          Error cargando gastos: {(error as Error).message}
         </div>
       </div>
     );
@@ -99,7 +95,7 @@ export function ExpenseList() {
     return (
       <div className="bg-gray-800 rounded-lg border border-gray-700 p-8">
         <div className="text-center text-gray-500">
-          No expenses yet. Add your first expense or connect Gmail to import automatically.
+          Aun no hay gastos. Agrega el primero o conecta Gmail para importarlos automaticamente.
         </div>
       </div>
     );
@@ -108,7 +104,7 @@ export function ExpenseList() {
   return (
     <div className="bg-gray-800 rounded-lg border border-gray-700">
       <div className="p-4 border-b border-gray-700">
-        <h2 className="text-lg font-semibold text-white">Recent Transactions</h2>
+        <h2 className="text-lg font-semibold text-white">Transacciones recientes</h2>
         <p className="text-sm text-gray-400">{sortedExpenses.length} total</p>
       </div>
 
@@ -123,9 +119,9 @@ export function ExpenseList() {
                 <h3 className="font-medium text-white truncate">{expense.commerce}</h3>
                 <div className="flex items-center gap-2 mt-1">
                   <span
-                    className={`text-xs px-2 py-0.5 rounded-full ${getCategoryStyle(expense.category)}`}
+                    className={`text-xs px-2 py-0.5 rounded-full ${getCategoryStyle(expense.category_slug)}`}
                   >
-                    {formatCategoryName(expense.category)}
+                    {getExpenseCategoryName(expense)}
                   </span>
                   <span className="text-xs text-gray-500">{formatDate(expense.date)}</span>
                 </div>
@@ -138,13 +134,13 @@ export function ExpenseList() {
                 <p className="font-semibold text-white">
                   {formatCurrency(expense.amount, expense.currency)}
                 </p>
-                <p className="text-xs text-gray-500">{expense.currency}</p>
+                <p className="text-xs text-gray-500">{expense.currency.toUpperCase()}</p>
               </div>
 
               <button
-                onClick={() => handleDelete(parseInt(expense.id))}
+                onClick={() => handleDelete(expense.id)}
                 className="text-red-400 hover:text-red-300 transition-colors"
-                title="Delete expense"
+                title="Eliminar gasto"
               >
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
