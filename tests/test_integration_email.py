@@ -2,7 +2,11 @@ from datetime import datetime
 from unittest.mock import MagicMock
 
 import pytest
+from sqlmodel import Session, SQLModel, create_engine, select
 
+from db.models import Expense as DbExpense
+from db.models import Transference as DbTransference
+from db.models import User
 from email_service.manager import Message
 from parsers.parser import EmailParser, save_expense
 
@@ -11,6 +15,14 @@ banco_chile_remitent = "enviodigital@bancochile.cl"
 time_obj = datetime(year=2025, month=9, day=12, hour=12, minute=30)
 
 BANK = "banco_chile"
+
+
+def create_user(session: Session, username: str, email: str) -> User:
+    user = User.create(username=username, email=email, password="password123")
+    session.add(user)
+    session.commit()
+    session.refresh(user)
+    return user
 
 
 class TestSaveExpenseIntegration:
@@ -27,13 +39,20 @@ class TestSaveExpenseIntegration:
 
         msg = Message(banco_chile_remitent, subject, time_obj, expense_data)
 
-        mock_session = MagicMock()
-        result = save_expense(1, parser, msg, mock_session)
+        engine = create_engine("sqlite://")
+        SQLModel.metadata.create_all(engine)
 
-        assert result is not None
-        mock_session.add.assert_called_once()
-        mock_session.commit.assert_called_once()
-        mock_session.refresh.assert_called_once()
+        with Session(engine) as session:
+            user = create_user(session, "purchase-user", "purchase@example.com")
+            result = save_expense(user.id, parser, msg, session)
+            saved_expenses = session.exec(select(DbExpense)).all()
+
+            assert result is not None
+            assert len(saved_expenses) == 1
+            assert saved_expenses[0].id == result.id
+            assert saved_expenses[0].user_id == user.id
+            assert saved_expenses[0].commerce == "STA ISABEL JM CAR"
+            assert saved_expenses[0].category_id is not None
 
     def test_save_expense_transference(self):
         """Test saving a transference from a transference email."""
@@ -47,13 +66,18 @@ class TestSaveExpenseIntegration:
         valid_remitent = "serviciodetransferencias@bancochile.cl"
         msg = Message(valid_remitent, subject, time_obj, data)
 
-        mock_session = MagicMock()
-        result = save_expense(1, parser, msg, mock_session)
+        engine = create_engine("sqlite://")
+        SQLModel.metadata.create_all(engine)
 
-        assert result is not None
-        mock_session.add.assert_called_once()
-        mock_session.commit.assert_called_once()
-        mock_session.refresh.assert_called_once()
+        with Session(engine) as session:
+            user = create_user(session, "transference-user", "transference@example.com")
+            result = save_expense(user.id, parser, msg, session)
+            saved_transferences = session.exec(select(DbTransference)).all()
+
+            assert result is not None
+            assert len(saved_transferences) == 1
+            assert saved_transferences[0].id == result.id
+            assert saved_transferences[0].user_id == user.id
 
     def test_save_expense_withdrawal(self):
         """Test saving a withdrawal expense."""
@@ -66,12 +90,20 @@ class TestSaveExpenseIntegration:
 
         msg = Message(banco_chile_remitent, subject, time_obj, data)
 
-        mock_session = MagicMock()
-        result = save_expense(1, parser, msg, mock_session)
+        engine = create_engine("sqlite://")
+        SQLModel.metadata.create_all(engine)
 
-        assert result is not None
-        mock_session.add.assert_called_once()
-        mock_session.commit.assert_called_once()
+        with Session(engine) as session:
+            user = create_user(session, "withdrawal-user", "withdrawal@example.com")
+            result = save_expense(user.id, parser, msg, session)
+            saved_expenses = session.exec(select(DbExpense)).all()
+
+            assert result is not None
+            assert len(saved_expenses) == 1
+            assert saved_expenses[0].id == result.id
+            assert saved_expenses[0].user_id == user.id
+            assert saved_expenses[0].commerce == "GIRO EN CAJERO"
+            assert saved_expenses[0].category_id is not None
 
     def test_save_expense_invalid_remitent_returns_none(self):
         """Test that invalid remitent returns None without saving."""

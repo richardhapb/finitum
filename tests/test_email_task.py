@@ -3,7 +3,11 @@
 import pytest
 from datetime import UTC, datetime
 from unittest.mock import MagicMock, patch
+from sqlmodel import Session, SQLModel, create_engine, select
 
+from db.models import Expense as DbExpense
+from db.models import Transference as DbTransference
+from db.models import User
 from email_service.manager import Message, normalize_date_from
 from parsers.parser import EmailParser
 from parsers.base import Currency
@@ -14,6 +18,14 @@ from tasks.email_fetch import save_message, get_user_messages
 banco_chile_remitent = "enviodigital@bancochile.cl"
 transference_remitent = "serviciodetransferencias@bancochile.cl"
 time_obj = datetime(year=2025, month=9, day=12, hour=12, minute=30)
+
+
+def create_user(session: Session, username: str, email: str) -> User:
+    user = User.create(username=username, email=email, password="password123")
+    session.add(user)
+    session.commit()
+    session.refresh(user)
+    return user
 
 
 class TestEmailTaskSaveMessage:
@@ -31,13 +43,18 @@ class TestEmailTaskSaveMessage:
             subject = f.read()
 
         msg = Message(banco_chile_remitent, subject, time_obj, body)
-        mock_session = MagicMock()
+        engine = create_engine("sqlite://")
+        SQLModel.metadata.create_all(engine)
 
-        result = save_message(1, parser, msg, mock_session)
+        with Session(engine) as session:
+            user = create_user(session, "task-expense-user", "task-expense@example.com")
+            result = save_message(user.id, parser, msg, session)
+            saved_expenses = session.exec(select(DbExpense)).all()
 
-        assert result is True
-        mock_session.add.assert_called_once()
-        mock_session.commit.assert_called_once()
+            assert result is True
+            assert len(saved_expenses) == 1
+            assert saved_expenses[0].user_id == user.id
+            assert saved_expenses[0].commerce == "STA ISABEL JM CAR"
 
     def test_save_message_with_valid_transference(self):
         """Test save_message correctly processes a valid transference email."""
@@ -51,13 +68,17 @@ class TestEmailTaskSaveMessage:
             subject = f.read()
 
         msg = Message(transference_remitent, subject, time_obj, body)
-        mock_session = MagicMock()
+        engine = create_engine("sqlite://")
+        SQLModel.metadata.create_all(engine)
 
-        result = save_message(1, parser, msg, mock_session)
+        with Session(engine) as session:
+            user = create_user(session, "task-transfer-user", "task-transfer@example.com")
+            result = save_message(user.id, parser, msg, session)
+            saved_transferences = session.exec(select(DbTransference)).all()
 
-        assert result is True
-        mock_session.add.assert_called_once()
-        mock_session.commit.assert_called_once()
+            assert result is True
+            assert len(saved_transferences) == 1
+            assert saved_transferences[0].user_id == user.id
 
     def test_save_message_with_invalid_remitent(self):
         """Test save_message returns False for invalid remitent."""
@@ -111,11 +132,12 @@ class TestEmailTaskSaveMessage:
 class TestEmailTaskEndToEnd:
     """End-to-end integration tests for the email task flow."""
 
+    @patch("tasks.email_fetch.save_message", return_value=True)
     @patch("tasks.email_fetch.get_session")
     @patch("tasks.email_fetch.EmailManager")
     @patch("tasks.email_fetch.md.rebuild_credentials")
     def test_get_user_messages_processes_multiple_messages(
-        self, mock_rebuild_credentials, mock_email_manager_class, mock_get_session
+        self, mock_rebuild_credentials, mock_email_manager_class, mock_get_session, mock_save_message
     ):
         """Test that get_user_messages processes multiple messages correctly."""
 
@@ -123,11 +145,13 @@ class TestEmailTaskEndToEnd:
         mock_user = MagicMock()
         mock_user.id = 1
         mock_user.username = "testuser"
+        mock_user.email = "testuser@example.com"
         mock_user.bank = "banco_chile"
         mock_user.last_update = datetime(2025, 1, 1)
 
         # Setup mock credentials object
         mock_creds_obj = MagicMock()
+        mock_creds_obj.is_valid = True
 
         # Setup mock session with exec returning user and credentials
         mock_session = MagicMock()
@@ -170,15 +194,23 @@ class TestEmailTaskEndToEnd:
         # Verify messages were fetched
         mock_em_instance.get_messages.assert_called_once()
 
-        # Verify session.add was called for each valid message (2 times) +  update `last_update`
-        assert mock_session.add.call_count == 3
-        assert mock_session.commit.call_count == 3
+        assert mock_save_message.call_count == 2
+        mock_session.add.assert_called_once_with(mock_user)
+        mock_session.commit.assert_called_once()
+        mock_session.rollback.assert_not_called()
 
+    @patch("tasks.email_fetch.save_message", return_value=True)
     @patch("tasks.email_fetch.get_session")
     @patch("tasks.email_fetch.EmailManager")
+    @patch("tasks.email_fetch.EmailParser")
     @patch("tasks.email_fetch.md.rebuild_credentials")
     def test_get_user_messages_uses_user_bank(
-        self, mock_rebuild_credentials, mock_email_manager_class, mock_get_session
+        self,
+        mock_rebuild_credentials,
+        mock_email_parser_class,
+        mock_email_manager_class,
+        mock_get_session,
+        mock_save_message,
     ):
         """Test that get_user_messages uses user.bank for parser initialization."""
 
@@ -186,10 +218,12 @@ class TestEmailTaskEndToEnd:
         mock_user = MagicMock()
         mock_user.id = 1
         mock_user.username = "testuser"
+        mock_user.email = "testuser@example.com"
         mock_user.bank = "santander"
         mock_user.last_update = datetime(2025, 1, 1)
 
         mock_creds_obj = MagicMock()
+        mock_creds_obj.is_valid = True
 
         mock_session = MagicMock()
         mock_exec_user = MagicMock()
@@ -204,6 +238,8 @@ class TestEmailTaskEndToEnd:
         mock_get_session.return_value = iter([mock_context_manager])
 
         mock_rebuild_credentials.return_value = MagicMock()
+        mock_parser = MagicMock()
+        mock_email_parser_class.return_value = mock_parser
 
         # Setup mock EmailManager with santander messages
         with open("tests/banks/santander/purchase_clp.txt", encoding="utf-8") as f:
@@ -219,9 +255,11 @@ class TestEmailTaskEndToEnd:
         # Execute
         get_user_messages(user_id=1)
 
-        # Verify message was processed with correct santander remitent
-        # + last_update save
-        assert mock_session.add.call_count == 2
+        mock_email_parser_class.assert_called_once_with("santander", "testuser@example.com")
+        mock_parser.build_parser.assert_called_once_with()
+        mock_save_message.assert_called_once_with(1, mock_parser, mock_messages[0], mock_session)
+        mock_session.add.assert_called_once_with(mock_user)
+        mock_session.commit.assert_called_once()
 
     @patch("tasks.email_fetch.get_session")
     @patch("tasks.email_fetch.md.rebuild_credentials")
