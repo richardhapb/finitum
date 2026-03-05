@@ -10,9 +10,13 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts';
-import { expensesApi } from '../../lib/api';
+import { expensesApi, transferencesApi } from '../../lib/api';
 import { DEFAULT_LOCALE, getExpenseCategoryName } from '../../lib/categories';
-import type { Expense } from '../../types/models';
+import type { Expense, Transference } from '../../types/models';
+
+type Transaction =
+  | (Expense & { type: 'expense' })
+  | (Transference & { type: 'transference' });
 
 const COLORS = [
   '#3b82f6', // blue
@@ -38,27 +42,51 @@ const formatCurrency = (value: number, currency = 'CLP') => {
 };
 
 export function ExpenseChart() {
-  const { data: expenses, isLoading } = useQuery({
+  const { data: expenses = [], isLoading: loadingExpenses } = useQuery({
     queryKey: ['expenses'],
     queryFn: expensesApi.getAll,
   });
+
+  const { data: transferences = [], isLoading: loadingTransferences } = useQuery({
+    queryKey: ['transferences'],
+    queryFn: transferencesApi.getAll,
+  });
+
+  const isLoading = loadingExpenses || loadingTransferences;
 
   if (isLoading) {
     return <div className="text-center py-8 text-gray-400">Cargando graficos...</div>;
   }
 
-  if (!expenses || expenses.length === 0) {
+  // Combine expenses and transferences
+  const allTransactions: Transaction[] = [
+    ...expenses.map((e) => ({ ...e, type: 'expense' as const })),
+    ...transferences.map((t) => ({ ...t, type: 'transference' as const })),
+  ];
+
+  if (allTransactions.length === 0) {
     return null;
   }
 
+  const getTransactionCategorySlug = (transaction: Transaction): string => {
+    return transaction.category_slug;
+  };
+
+  const getTransactionCategoryName = (transaction: Transaction): string => {
+    if (transaction.type === 'expense') {
+      return getExpenseCategoryName(transaction);
+    }
+    return transaction.category_name;
+  };
+
   // Group by category and sort by value descending
-  const categoryData = expenses.reduce((acc: Record<string, { name: string; value: number }>, expense: Expense) => {
-    const categoryKey = expense.category_slug || getExpenseCategoryName(expense);
+  const categoryData = allTransactions.reduce((acc: Record<string, { name: string; value: number }>, transaction: Transaction) => {
+    const categoryKey = getTransactionCategorySlug(transaction);
     const currentCategory = acc[categoryKey] || {
-      name: getExpenseCategoryName(expense),
+      name: getTransactionCategoryName(transaction),
       value: 0,
     };
-    currentCategory.value += expense.amount;
+    currentCategory.value += transaction.amount;
     acc[categoryKey] = currentCategory;
     return acc;
   }, {});
@@ -75,10 +103,10 @@ export function ExpenseChart() {
 
 
   // Group by month (last 6 months)
-  const monthlyData = expenses.reduce((acc: Record<string, number>, expense: Expense) => {
-    const date = new Date(expense.date);
+  const monthlyData = allTransactions.reduce((acc: Record<string, number>, transaction: Transaction) => {
+    const date = new Date(transaction.date);
     const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-    acc[monthKey] = (acc[monthKey] || 0) + expense.amount;
+    acc[monthKey] = (acc[monthKey] || 0) + transaction.amount;
     return acc;
   }, {});
 
@@ -95,11 +123,11 @@ export function ExpenseChart() {
     });
 
   // Calculate stats
-  const total = expenses.reduce((sum, exp) => sum + exp.amount, 0);
+  const total = allTransactions.reduce((sum, t) => sum + t.amount, 0);
   const thisMonth = new Date().toISOString().slice(0, 7);
-  const thisMonthTotal = expenses
-    .filter((exp) => exp.date.startsWith(thisMonth))
-    .reduce((sum, exp) => sum + exp.amount, 0);
+  const thisMonthTotal = allTransactions
+    .filter((t) => t.date.startsWith(thisMonth))
+    .reduce((sum, t) => sum + t.amount, 0);
 
   return (
     <div className="space-y-6">
@@ -115,11 +143,11 @@ export function ExpenseChart() {
         </div>
         <div className="bg-gray-800 text-white p-4 rounded-lg shadow-lg border border-gray-700">
           <p className="text-sm text-gray-400">Transacciones</p>
-          <p className="text-2xl font-bold text-white">{expenses.length}</p>
+          <p className="text-2xl font-bold text-white">{allTransactions.length}</p>
         </div>
         <div className="bg-gray-800 text-white p-4 rounded-lg shadow-lg border border-gray-700">
           <p className="text-sm text-gray-400">Promedio</p>
-          <p className="text-2xl font-bold text-white">{formatCurrency(total / expenses.length)}</p>
+          <p className="text-2xl font-bold text-white">{formatCurrency(total / allTransactions.length)}</p>
         </div>
       </div>
 
