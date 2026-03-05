@@ -242,6 +242,8 @@ def save_expense(
 
     if expense_type == ExpenseType.TRANSFERENCE:
         logger.info("Trying to save transference")
+        if "Monto transferido" in msg.body:
+            logger.info(msg.body)
         transference = parser.get_transference(msg)
         if not transference:
             return None

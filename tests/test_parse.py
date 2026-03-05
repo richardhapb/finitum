@@ -100,7 +100,7 @@ def test_parse_data_giro():
     ("bank", "amount", "recipient", "test_remitent"),
     [
         ("banco_chile", 6000, "Some Person", "serviciodetransferencias@bancochile.cl"),
-        ("santander", 53000, "JORGE IGNACIO CASTRO VELIZ", santander_remitent),
+        ("santander", 53000, "Pablo Farfan", santander_remitent),
     ],
 )
 def test_parse_transference(bank, amount, recipient, test_remitent):

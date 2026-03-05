@@ -29,11 +29,11 @@
         },
         "body": {
             "amountPurchase": "Monto pagado\\s+>\\s+\\$([\\d.]+)",
-            "amountTransference": "Monto transferido\\s+>\\s+\\$\\s*([\\d.]+)",
+            "amountTransference": "Monto transferido\\n*\\$\\s*([\\d.]+)",
             "amountWithdrawal": "Monto\\s+>\\s+\\$([\\d.]+)",
             "date": "\\d{1,2}[-/]\\d{1,2}[-/]\\d{4}",
             "commerce": "Compa[^>]+>\\s*([A-Za-z0-9\\s]+?)\\s*=09",
-            "transferenceRecipient": "Datos de destino[^>]+>\\s*Nombre\\s+>\\s+([A-Z\\s]+?)\\s+>\\s+RUT",
+            "transferenceRecipient": "Datos de destino[\\s\\S]*?Nombre\\s+([A-Za-z\\s]+?)\\s+RUT",
             "transferenceMatches": ""
         }
     }
