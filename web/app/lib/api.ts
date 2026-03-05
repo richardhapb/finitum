@@ -6,6 +6,7 @@ import type {
   EmailScanResponse,
   Expense,
   GenericResponse,
+  Transference,
   User,
   UserLoginResponse,
   UserUpdate,
@@ -97,6 +98,19 @@ export const expensesApi = {
 
   delete: async (id: Number): Promise<GenericResponse> => {
     const response = await api.delete<GenericResponse>(`/expenses/${id}`);
+    return response.data;
+  },
+};
+
+// Transferences API
+export const transferencesApi = {
+  getAll: async (): Promise<Transference[]> => {
+    const response = await api.get<Transference[]>("/transferences");
+    return response.data;
+  },
+
+  delete: async (id: Number): Promise<GenericResponse> => {
+    const response = await api.delete<GenericResponse>(`/transferences/${id}`);
     return response.data;
   },
 };

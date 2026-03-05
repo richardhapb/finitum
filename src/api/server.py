@@ -18,6 +18,7 @@ from api.jwt import Token, get_current_user, set_access_cookie, set_refresh_cook
 from db.categories import (
     create_custom_category,
     get_category_patterns,
+    get_global_category_by_slug,
     get_visible_category,
     list_categories_for_user,
 )
@@ -27,6 +28,8 @@ from db.models import (
     CategoryRead,
     Expense as DBExpense,
     ExpenseRead,
+    Transference as DBTransference,
+    TransferenceRead,
 )
 from db.models import (
     ExpenseCreate,
@@ -130,6 +133,21 @@ def serialize_expense(expense: DBExpense, category: Category) -> ExpenseRead:
         category_is_custom=category.user_id is not None,
         date=expense.date,
         description=expense.description,
+    )
+
+
+def serialize_transference(transference: DBTransference, category: Category) -> TransferenceRead:
+    return TransferenceRead(
+        id=transference.id,
+        user_id=transference.user_id,
+        recipient=transference.recipient,
+        amount=transference.amount,
+        currency=transference.currency,
+        category=transference.category,
+        category_slug=category.slug,
+        category_name=category.name_es,
+        date=transference.date,
+        description=transference.description,
     )
 
 
@@ -392,6 +410,36 @@ def delete_expense(
     if not expense:
         HTTPException(detail=f"Expense not found: {id}", status_code=status.HTTP_404_NOT_FOUND)
     session.delete(expense)
+    session.commit()
+    return JSONResponse(content={"msg": "OK"})
+
+
+@app.get("/transferences", response_model=list[TransferenceRead])
+def get_transferences(
+    current_user: User = Depends(get_current_user), session: Session = Depends(get_session)
+) -> list[TransferenceRead]:
+    """Get all transferences for the current user."""
+    user_id = require_user_id(current_user)
+    transferences = session.exec(select(DBTransference).where(DBTransference.user_id == user_id)).all()
+    result = []
+    for t in transferences:
+        category = get_global_category_by_slug(session, t.category.value)
+        result.append(serialize_transference(t, category))
+    return result
+
+
+@app.delete("/transferences/{id}")
+def delete_transference(
+    id: int, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)
+) -> JSONResponse:
+    """Delete a transference for the current user."""
+    user_id = require_user_id(current_user)
+    transference = session.exec(
+        select(DBTransference).where(DBTransference.user_id == user_id, DBTransference.id == id)
+    ).first()
+    if not transference:
+        raise HTTPException(detail=f"Transference not found: {id}", status_code=status.HTTP_404_NOT_FOUND)
+    session.delete(transference)
     session.commit()
     return JSONResponse(content={"msg": "OK"})
 

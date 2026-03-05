@@ -172,6 +172,19 @@ class ExpenseRead(SQLModel):
     description: str | None = None
 
 
+class TransferenceRead(SQLModel):
+    id: int
+    user_id: int
+    recipient: str
+    amount: float
+    currency: Currency
+    category: ExpenseCategory
+    category_slug: str
+    category_name: str
+    date: datetime
+    description: str | None = None
+
+
 class UserCreate(SQLModel):
     username: str
     email: EmailStr

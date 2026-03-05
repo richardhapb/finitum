@@ -62,6 +62,20 @@ export interface CreateExpenseRequest {
   description?: string;
 }
 
+// Transference types
+export interface Transference {
+  id: number;
+  user_id: number;
+  recipient: string;
+  amount: number;
+  currency: string;
+  category: string;
+  category_slug: string;
+  category_name: string;
+  date: string;
+  description?: string;
+}
+
 export interface Category {
   id: number;
   slug: string;

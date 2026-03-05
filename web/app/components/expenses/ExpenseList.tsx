@@ -1,9 +1,13 @@
 import { useQuery } from '@tanstack/react-query';
-import { expensesApi } from '../../lib/api';
+import { expensesApi, transferencesApi } from '../../lib/api';
 import { DEFAULT_LOCALE, getExpenseCategoryName } from '../../lib/categories';
-import type { Expense } from '../../types/models';
+import type { Expense, Transference } from '../../types/models';
 import { useMemo } from 'react';
 import { queryClient } from '../../lib/queryClient';
+
+type Transaction =
+  | (Expense & { type: 'expense' })
+  | (Transference & { type: 'transference' });
 
 const CATEGORY_COLORS: Record<string, string> = {
   FOOD: 'bg-orange-500/20 text-orange-400',
@@ -22,13 +26,15 @@ const CATEGORY_COLORS: Record<string, string> = {
   ONLINE: 'bg-indigo-500/20 text-indigo-400',
   TRAVEL: 'bg-teal-500/20 text-teal-400',
   SPORTS: 'bg-lime-500/20 text-lime-400',
+  LOAN: 'bg-yellow-500/20 text-yellow-400',
+  FAMILY: 'bg-rose-500/20 text-rose-400',
   GENERAL: 'bg-slate-500/20 text-slate-400',
 };
 
-async function handleDelete(expenseId: number) {
+async function handleDeleteExpense(expenseId: number) {
   if (!window.confirm('Quieres eliminar este gasto?')) return;
   try {
-    await expensesApi.delete(expenseId); 
+    await expensesApi.delete(expenseId);
     queryClient.invalidateQueries({ queryKey: ['expenses'] });
   } catch (error) {
     console.error('Failed to delete expense:', error);
@@ -36,17 +42,38 @@ async function handleDelete(expenseId: number) {
   }
 }
 
+async function handleDeleteTransference(transferenceId: number) {
+  if (!window.confirm('Quieres eliminar esta transferencia?')) return;
+  try {
+    await transferencesApi.delete(transferenceId);
+    queryClient.invalidateQueries({ queryKey: ['transferences'] });
+  } catch (error) {
+    console.error('Failed to delete transference:', error);
+    alert('No se pudo eliminar la transferencia. Intentalo de nuevo.');
+  }
+}
+
 export function ExpenseList() {
-  const { data: expenses = [], isLoading, error } = useQuery({
+  const { data: expenses = [], isLoading: loadingExpenses, error: expensesError } = useQuery({
     queryKey: ['expenses'],
     queryFn: expensesApi.getAll,
   });
 
-  // Derived + memoized sorted list (newest first)
-  const sortedExpenses = useMemo(() => {
-    if (!expenses.length) return [];
-    return [...expenses].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [expenses]);
+  const { data: transferences = [], isLoading: loadingTransferences, error: transferencesError } = useQuery({
+    queryKey: ['transferences'],
+    queryFn: transferencesApi.getAll,
+  });
+
+  const isLoading = loadingExpenses || loadingTransferences;
+  const error = expensesError || transferencesError;
+
+  // Combine and sort all transactions (newest first)
+  const sortedTransactions = useMemo(() => {
+    const expensesWithType: Transaction[] = expenses.map((e) => ({ ...e, type: 'expense' as const }));
+    const transferencesWithType: Transaction[] = transferences.map((t) => ({ ...t, type: 'transference' as const }));
+    const all = [...expensesWithType, ...transferencesWithType];
+    return all.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [expenses, transferences]);
 
   const formatCurrency = (amount: number, currency: string) => {
     const normalizedCurrency = currency.toUpperCase();
@@ -76,7 +103,7 @@ export function ExpenseList() {
   if (isLoading) {
     return (
       <div className="bg-gray-800 rounded-lg border border-gray-700 p-8">
-        <div className="text-center text-gray-400">Cargando gastos...</div>
+        <div className="text-center text-gray-400">Cargando transacciones...</div>
       </div>
     );
   }
@@ -85,62 +112,87 @@ export function ExpenseList() {
     return (
       <div className="bg-gray-800 rounded-lg border border-gray-700 p-8">
         <div className="text-center text-red-400">
-          Error cargando gastos: {(error as Error).message}
+          Error cargando transacciones: {(error as Error).message}
         </div>
       </div>
     );
   }
 
-  if (sortedExpenses.length === 0) {
+  if (sortedTransactions.length === 0) {
     return (
       <div className="bg-gray-800 rounded-lg border border-gray-700 p-8">
         <div className="text-center text-gray-500">
-          Aun no hay gastos. Agrega el primero o conecta Gmail para importarlos automaticamente.
+          Aun no hay transacciones. Agrega la primera o conecta Gmail para importarlas automaticamente.
         </div>
       </div>
     );
   }
+
+  const getTransactionTitle = (transaction: Transaction) => {
+    if (transaction.type === 'expense') {
+      return transaction.commerce;
+    }
+    return transaction.recipient || 'Transferencia';
+  };
+
+  const getTransactionCategoryName = (transaction: Transaction) => {
+    if (transaction.type === 'expense') {
+      return getExpenseCategoryName(transaction);
+    }
+    return transaction.category_name;
+  };
 
   return (
     <div className="bg-gray-800 rounded-lg border border-gray-700">
       <div className="p-4 border-b border-gray-700">
         <h2 className="text-lg font-semibold text-white">Transacciones recientes</h2>
-        <p className="text-sm text-gray-400">{sortedExpenses.length} total</p>
+        <p className="text-sm text-gray-400">{sortedTransactions.length} total</p>
       </div>
 
-      <div className="divide-y divide-gray-700 max-h-125 overflow-y-auto"> {/* ← fixed height example */}
-        {sortedExpenses.map((expense: Expense) => (
+      <div className="divide-y divide-gray-700 max-h-125 overflow-y-auto">
+        {sortedTransactions.map((transaction: Transaction) => (
           <div
-            key={expense.id}
+            key={`${transaction.type}-${transaction.id}`}
             className="p-4 hover:bg-gray-750 transition-colors"
           >
             <div className="flex justify-between items-start gap-3">
               <div className="min-w-0 flex-1">
-                <h3 className="font-medium text-white truncate">{expense.commerce}</h3>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-medium text-white truncate">{getTransactionTitle(transaction)}</h3>
+                  {transaction.type === 'transference' && (
+                    <span className="text-xs px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400">
+                      Transferencia
+                    </span>
+                  )}
+                </div>
                 <div className="flex items-center gap-2 mt-1">
                   <span
-                    className={`text-xs px-2 py-0.5 rounded-full ${getCategoryStyle(expense.category_slug)}`}
+                    className={`text-xs px-2 py-0.5 rounded-full ${getCategoryStyle(transaction.category_slug)}`}
                   >
-                    {getExpenseCategoryName(expense)}
+                    {getTransactionCategoryName(transaction)}
                   </span>
-                  <span className="text-xs text-gray-500">{formatDate(expense.date)}</span>
+                  <span className="text-xs text-gray-500">{formatDate(transaction.date)}</span>
                 </div>
-                {expense.description && (
-                  <p className="text-sm text-gray-500 mt-1 truncate">{expense.description}</p>
+                {transaction.description && (
+                  <p className="text-sm text-gray-500 mt-1 truncate">{transaction.description}</p>
                 )}
               </div>
 
               <div className="text-right shrink-0">
                 <p className="font-semibold text-white">
-                  {formatCurrency(expense.amount, expense.currency)}
+                  {formatCurrency(transaction.amount, transaction.currency)}
                 </p>
-                <p className="text-xs text-gray-500">{expense.currency.toUpperCase()}</p>
+                <p className="text-xs text-gray-500">{transaction.currency.toUpperCase()}</p>
               </div>
 
               <button
-                onClick={() => handleDelete(expense.id)}
+                onClick={() =>
+                  transaction.type === 'expense'
+                    ? handleDeleteExpense(transaction.id)
+                    : handleDeleteTransference(transaction.id)
+                }
                 className="text-red-400 hover:text-red-300 transition-colors"
-                title="Eliminar gasto"
+                title={transaction.type === 'expense' ? 'Eliminar gasto' : 'Eliminar transferencia'}
               >
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
