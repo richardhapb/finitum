@@ -10,6 +10,24 @@ No raw email content is permanently stored.
 Only extracted transaction data (amount, merchant, date, category)
 is saved to provide financial analytics.
 
+Data Retention and Deletion
+
+Google user data, including Gmail message content accessed during
+transaction extraction, is processed in real time and is not stored
+beyond the immediate processing session. Only the derived transaction
+data (amount, merchant, date, category) is retained in your account
+for as long as your account remains active.
+
+You may request deletion of all your data at any time by contacting
+finitumapp@gmail.com. Upon receiving a deletion request, all stored
+transaction data and associated account information will be permanently
+deleted within 30 days. You may also delete your account directly
+within the application, which will immediately remove all stored data.
+
+OAuth tokens granted by Google are stored securely and are revoked
+and deleted when you disconnect your Google account or delete your
+Finitum account.
+
 Finitum does not sell, share, or use user data for advertising purposes.
 
 Authentication is handled securely using Google OAuth2 and JWT tokens.

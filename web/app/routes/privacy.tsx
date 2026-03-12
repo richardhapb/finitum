@@ -25,6 +25,33 @@ export default function Privacy() {
             is saved to provide financial analytics.
           </p>
 
+          <h2 className="text-xl font-semibold text-white pt-4">Data Retention and Deletion</h2>
+
+          <p>
+            Google user data, including Gmail message content accessed during
+            transaction extraction, is processed in real time and is not stored
+            beyond the immediate processing session. Only the derived transaction
+            data (amount, merchant, date, category) is retained in your account
+            for as long as your account remains active.
+          </p>
+
+          <p>
+            You may request deletion of all your data at any time by contacting{" "}
+            <a href="mailto:finitumapp@gmail.com" className="text-blue-400 hover:underline">
+              finitumapp@gmail.com
+            </a>
+            . Upon receiving a deletion request, all stored transaction data and
+            associated account information will be permanently deleted within 30
+            days. You may also delete your account directly within the
+            application, which will immediately remove all stored data.
+          </p>
+
+          <p>
+            OAuth tokens granted by Google are stored securely and are revoked
+            and deleted when you disconnect your Google account or delete your
+            Finitum account.
+          </p>
+
           <p>Finitum does not sell, share, or use user data for advertising purposes.</p>
 
           <p>
