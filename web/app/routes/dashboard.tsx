@@ -30,7 +30,7 @@ export default function DashboardPage() {
   });
 
   const showAuthWarning = user && (!user.has_google_credentials || !user.is_google_credentials_valid);
-  const showGmailScopeWarning = user && user.has_google_credentials && user.is_google_credentials_valid && !user.has_gmail_scope;
+  const showForwardingWarning = Boolean(user && !user.forwarding_active);
   const canTriggerVerificationScan = Boolean(user?.verification_scan_enabled);
 
   const oauthScanFeedback = (() => {
@@ -69,22 +69,22 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {showGmailScopeWarning && (
+        {showForwardingWarning && (
           <div className="mb-6 bg-blue-500/10 border border-blue-500 rounded-lg p-4 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <span className="text-2xl">📧</span>
               <div>
-                <h3 className="font-semibold text-blue-400">Gmail access not granted</h3>
+                <h3 className="font-semibold text-blue-400">Email forwarding not set up</h3>
                 <p className="text-sm text-gray-300">
-                  You connected Google but didn't grant Gmail access. Expenses won't be imported automatically from your bank emails.
+                  Forward your bank notification emails to your personal Finitum address to import expenses automatically. No Gmail access required.
                 </p>
               </div>
             </div>
             <a
-              href={authApi.getGoogleAuthUrl()}
+              href="/profile"
               className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded transition-colors whitespace-nowrap"
             >
-              Grant Gmail access
+              Set up forwarding
             </a>
           </div>
         )}
@@ -134,8 +134,7 @@ export default function DashboardPage() {
               disabled={
                 manualScan.isPending ||
                 !user?.has_google_credentials ||
-                !user?.is_google_credentials_valid ||
-                !user?.has_gmail_scope
+                !user?.is_google_credentials_valid
               }
               className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white font-medium rounded transition-colors whitespace-nowrap"
             >

@@ -12,9 +12,10 @@ CLIENT_ID = os.environ.get("GOOGLE_CLIENT")
 CLIENT_SECRET = os.environ.get("GOOGLE_SECRET")
 REDIRECT_URI = os.environ.get("GOOGLE_REDIRECT_URI", "http://localhost:9090/google_oauth2callback")
 
+# Sign-in only: non-sensitive scopes (no CASA verification required).
+# Gmail ingestion now happens via inbound forwarding, not the Gmail API.
 SCOPES = [
     "https://www.googleapis.com/auth/userinfo.email",  # Access to user's email
-    "https://www.googleapis.com/auth/gmail.readonly",  # Read-only access to Gmail
     "openid",  # Explicitly include OpenID scope if using OpenID Connect
 ]
 

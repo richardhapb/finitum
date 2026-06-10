@@ -8,7 +8,7 @@ from db.service import get_session
 from email_service.manager import EmailManager, Message, normalize_date_from
 from parsers.parser import BankNotFoundError, EmailParser, save_expense
 from tasks.app import celery
-from utils.config import TZ
+from utils.config import GMAIL_POLLING_ENABLED, TZ
 from utils.logger import get_logger
 
 logger = get_logger()
@@ -105,6 +105,12 @@ def get_user_messages(user_id: int) -> None:
     routing_key="periodic",
 )
 def get_messages() -> None:
+    # Legacy Gmail API polling path, retained behind a flag during the
+    # transition to forwarding ingestion. Default off (GMAIL_POLLING_ENABLED).
+    if not GMAIL_POLLING_ENABLED:
+        logger.info("Gmail polling disabled (GMAIL_POLLING_ENABLED=false); skipping periodic scan")
+        return
+
     # Only fetch users with valid Google credentials
     users_query = sqlmodel.select(md.User).join(md.UserGoogleCredential).where(md.UserGoogleCredential.is_valid)
     with next(get_session()) as session:

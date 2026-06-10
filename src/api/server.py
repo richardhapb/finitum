@@ -47,6 +47,7 @@ from db.models import (
     UserUpdate,
 )
 from db.service import get_session
+from email_service import ingest
 from oauth_service import google_oauth
 from tasks.email_fetch import get_user_messages
 from utils.config import (
@@ -54,6 +55,9 @@ from utils.config import (
     DEBUG,
     EMAIL_SCAN_ALLOWED_EMAILS,
     EMAIL_SCAN_VERIFICATION_MODE,
+    GMAIL_POLLING_ENABLED,
+    INGEST_DOMAIN,
+    INGEST_WEBHOOK_SECRET,
     REDIS_HOST,
     REDIS_PORT,
     REFRESH_TOKEN_KEY,
@@ -162,6 +166,27 @@ def serialize_transference(transference: DBTransference, category: Category) -> 
     )
 
 
+def serialize_user_info(user: User) -> dict[str, object]:
+    """Build the /me payload, including forwarding ingestion status."""
+    creds = user.google_credentials
+    ingest_address = ingest.build_ingest_address(user.ingest_token, INGEST_DOMAIN) if user.ingest_token else None
+    last_email_at = ingest.get_last_email_at(redis_client, user.id) if user.id is not None else None
+    return {
+        "id": user.id,
+        "username": user.username,
+        "email": user.email,
+        "bank": user.bank,
+        "last_update": user.last_update.isoformat(),
+        "has_google_credentials": creds is not None,
+        "is_google_credentials_valid": creds.is_valid if creds else False,
+        # Forwarding ingestion status (replaces has_gmail_scope).
+        "ingest_address": ingest_address,
+        "forwarding_active": last_email_at is not None,
+        "last_email_received_at": last_email_at,
+        "verification_scan_enabled": can_use_verification_scan(user),
+    }
+
+
 def require_user_id(user: User) -> int:
     if user.id is None:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Authenticated user is invalid")
@@ -188,7 +213,14 @@ def get_available_banks() -> JSONResponse:
     with open(regex_path, encoding="utf-8") as f:
         banks_config = json.load(f)
 
-    banks = [{"id": bank_id, "name": bank_id.replace("_", " ").title()} for bank_id in banks_config]
+    banks = [
+        {
+            "id": bank_id,
+            "name": bank_id.replace("_", " ").title(),
+            "senders": config.get("remitents", []),
+        }
+        for bank_id, config in banks_config.items()
+    ]
     return JSONResponse(content=banks)
 
 
@@ -297,22 +329,8 @@ def logout(response: Response) -> dict[str, str]:
 def get_current_user_info(
     current_user: User = Depends(get_current_user),
 ) -> JSONResponse:
-    """Get current user info including Google credentials status."""
-    creds = current_user.google_credentials
-    gmail_scope = "https://www.googleapis.com/auth/gmail.readonly"
-    return JSONResponse(
-        content={
-            "id": current_user.id,
-            "username": current_user.username,
-            "email": current_user.email,
-            "bank": current_user.bank,
-            "last_update": current_user.last_update.isoformat(),
-            "has_google_credentials": creds is not None,
-            "is_google_credentials_valid": creds.is_valid if creds else False,
-            "has_gmail_scope": gmail_scope in creds.granted_scopes() if creds else False,
-            "verification_scan_enabled": can_use_verification_scan(current_user),
-        }
-    )
+    """Get current user info including Google credentials and forwarding status."""
+    return JSONResponse(content=serialize_user_info(current_user))
 
 
 @app.patch("/me")
@@ -338,21 +356,63 @@ def update_current_user(
     session.commit()
     session.refresh(current_user)
 
-    creds = current_user.google_credentials
-    gmail_scope = "https://www.googleapis.com/auth/gmail.readonly"
-    return JSONResponse(
-        content={
-            "id": current_user.id,
-            "username": current_user.username,
-            "email": current_user.email,
-            "bank": current_user.bank,
-            "last_update": current_user.last_update.isoformat(),
-            "has_google_credentials": creds is not None,
-            "is_google_credentials_valid": creds.is_valid if creds else False,
-            "has_gmail_scope": gmail_scope in creds.granted_scopes() if creds else False,
-            "verification_scan_enabled": can_use_verification_scan(current_user),
-        }
-    )
+    return JSONResponse(content=serialize_user_info(current_user))
+
+
+@app.get("/ingest/address")
+def get_ingest_address(
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+) -> JSONResponse:
+    """Return the user's inbound forwarding address, generating the token lazily."""
+    if not current_user.ingest_token:
+        # Generate a unique token, retrying on the rare collision.
+        for _ in range(5):
+            candidate = User.generate_ingest_token()
+            if session.exec(select(User).where(User.ingest_token == candidate)).first() is None:
+                current_user.ingest_token = candidate
+                break
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Could not allocate ingest token"
+            )
+        session.add(current_user)
+        session.commit()
+        session.refresh(current_user)
+
+    address = ingest.build_ingest_address(current_user.ingest_token, INGEST_DOMAIN)
+    return JSONResponse(content={"address": address})
+
+
+@app.get("/ingest/confirmation")
+def get_ingest_confirmation(current_user: User = Depends(get_current_user)) -> JSONResponse:
+    """Return the captured Gmail forwarding confirmation link/code, if any."""
+    if not current_user.ingest_token:
+        return JSONResponse(content={"confirmation": None})
+    confirmation = ingest.get_confirmation(redis_client, current_user.ingest_token)
+    return JSONResponse(content={"confirmation": confirmation})
+
+
+@app.post("/ingest/email")
+async def ingest_email(
+    request: Request,
+    recipient: str = Query(..., description="Destination ingest address u-<token>@in.<domain>"),
+    session: Session = Depends(get_session),
+) -> JSONResponse:
+    """Inbound webhook for forwarded bank emails (called by the CF Email worker).
+
+    The body is the raw MIME message; ``X-Finitum-Signature`` is its HMAC-SHA256.
+    Always returns 200 on a valid signature (even for unknown tokens) so the
+    worker never retries in a way that leaks which tokens are valid.
+    """
+    body = await request.body()
+    signature = request.headers.get("X-Finitum-Signature")
+    if not ingest.verify_signature(INGEST_WEBHOOK_SECRET, body, signature):
+        logger.warning("Rejected inbound email with invalid signature for recipient %r", recipient)
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid signature")
+
+    result = ingest.process_inbound_email(body, recipient, session=session, redis_client=redis_client)
+    return JSONResponse(content={"status": result.outcome.value})
 
 
 @app.get("/categories", response_model=list[CategoryRead])
@@ -599,8 +659,9 @@ def google_callback(
     sub = {"sub": str(require_user_id(user))}
     access = Token.create_access_token(sub)
     refresh = Token.create_refresh_token(sub)
+    # Gmail API polling is disabled by default; ingestion happens via forwarding.
     scan_status = "skipped_scope"
-    if gmail_granted:
+    if GMAIL_POLLING_ENABLED and gmail_granted:
         try:
             get_user_messages.delay(user.id)
             scan_status = "queued"

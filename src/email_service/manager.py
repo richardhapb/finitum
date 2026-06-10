@@ -136,9 +136,15 @@ class Message:
     @classmethod
     def parse_message(cls, raw_email_b64url: str, date_from: datetime | None = None) -> Message | None:
         # Decode base64url -> bytes -> EmailMessage
-        raw_bytes = _b64url_decode(raw_email_b64url)
-        msg: EmailMessage = email.message_from_bytes(raw_bytes)
+        return cls.from_bytes(_b64url_decode(raw_email_b64url), date_from)
 
+    @classmethod
+    def from_bytes(cls, raw_bytes: bytes, date_from: datetime | None = None) -> Message | None:
+        """Parse a raw MIME message (e.g. forwarded inbound email) into a Message."""
+        return cls.from_email_message(email.message_from_bytes(raw_bytes), date_from)
+
+    @classmethod
+    def from_email_message(cls, msg: EmailMessage, date_from: datetime | None = None) -> Message | None:
         remitent = _decode_header(msg.get("from"))
         subject = _decode_header(msg.get("subject"))
         date = _parse_date(_ensure_str(msg.get("date")))

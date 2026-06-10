@@ -1,0 +1,10 @@
+# Wrangler local state / cache (account id, build cache, dev state)
+.wrangler/
+
+# Dependencies and build output
+node_modules/
+dist/
+
+# Local secrets / env
+.dev.vars
+.env

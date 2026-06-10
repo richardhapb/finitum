@@ -1,0 +1,14 @@
+name = "finitum-email-worker"
+main = "src/worker.js"
+compatibility_date = "2024-09-01"
+
+# Public API base URL the worker forwards inbound mail to.
+# The API is served under the /api path prefix on the apex (the reverse proxy
+# strips /api before forwarding to FastAPI), so include /api here. The worker
+# POSTs to ${INGEST_API_URL}/ingest/email.
+[vars]
+INGEST_API_URL = "https://finitum.app/api"
+
+# INGEST_WEBHOOK_SECRET is a secret, not a var. Set it with:
+#   wrangler secret put INGEST_WEBHOOK_SECRET
+# and use the SAME value as the API's INGEST_WEBHOOK_SECRET env var.

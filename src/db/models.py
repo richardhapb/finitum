@@ -30,7 +30,17 @@ class User(SQLModel, table=True):
     email: EmailStr = Field(unique=True, index=True)
     bank: str = Field(default="banco_chile")
     last_update: datetime = Field(default_factory=minimum_date_factory)
+    # Per-user inbound forwarding token. Address is u-<ingest_token>@in.<domain>.
+    # Generated lazily on first request to GET /ingest/address.
+    ingest_token: str | None = Field(default=None, unique=True, index=True)
     google_credentials: Optional["UserGoogleCredential"] = Relationship(back_populates="user")
+
+    @staticmethod
+    def generate_ingest_token() -> str:
+        """Short, URL-safe, lowercased token for the per-user ingest address."""
+        import secrets
+
+        return secrets.token_urlsafe(8).lower()
 
     def set_password(self, password: str) -> None:
         self.password = pwd_context.hash(password)

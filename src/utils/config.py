@@ -21,3 +21,12 @@ EMAIL_SCAN_VERIFICATION_REMITENTS = {
 WEB_ADDRESS = os.getenv("WEB_ADDRESS", "http://localhost:5173")
 APP_NAME = "finitum"
 TZ = pytz.timezone("America/Santiago")
+
+# Inbound forwarding ingestion (Phase 2).
+# Full mail domain for per-user ingest addresses: u-<token>@<INGEST_DOMAIN>.
+# Use the apex (e.g. finitum.app) with Cloudflare Email Routing on the apex.
+INGEST_DOMAIN = os.getenv("INGEST_DOMAIN", "finitum.app")
+# Shared secret used to HMAC-sign the inbound webhook body (set on the CF worker too).
+INGEST_WEBHOOK_SECRET = os.getenv("INGEST_WEBHOOK_SECRET", "")
+# Legacy Gmail API polling path. Disabled by default now that forwarding ingestion exists.
+GMAIL_POLLING_ENABLED = os.getenv("GMAIL_POLLING_ENABLED", "false") == "true"

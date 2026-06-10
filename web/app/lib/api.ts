@@ -6,6 +6,8 @@ import type {
   EmailScanResponse,
   Expense,
   GenericResponse,
+  IngestAddress,
+  IngestConfirmationResponse,
   Transference,
   User,
   UserLoginResponse,
@@ -131,6 +133,19 @@ export const categoriesApi = {
 export const emailApi = {
   triggerScan: async (): Promise<EmailScanResponse> => {
     const response = await api.post<EmailScanResponse>("/email/scan");
+    return response.data;
+  },
+};
+
+// Forwarding ingestion API
+export const ingestApi = {
+  getAddress: async (): Promise<IngestAddress> => {
+    const response = await api.get<IngestAddress>("/ingest/address");
+    return response.data;
+  },
+
+  getConfirmation: async (): Promise<IngestConfirmationResponse> => {
+    const response = await api.get<IngestConfirmationResponse>("/ingest/confirmation");
     return response.data;
   },
 };

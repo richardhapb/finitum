@@ -1,23 +1,50 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Navbar } from "../components/layout/Navbar";
-import { authApi, banksApi } from "../lib/api";
+import { authApi, banksApi, ingestApi } from "../lib/api";
 
 export default function ProfilePage() {
   const queryClient = useQueryClient();
   const [isEditing, setIsEditing] = useState(false);
   const [username, setUsername] = useState("");
   const [bank, setBank] = useState("");
+  const [copied, setCopied] = useState<string | null>(null);
 
   const { data: user, isLoading } = useQuery({
     queryKey: ["me"],
     queryFn: authApi.getMe,
+    // Poll so the "waiting for first email" status flips live once mail arrives.
+    refetchInterval: (query) =>
+      query.state.data?.forwarding_active ? false : 15000,
   });
 
   const { data: banks = [] } = useQuery({
     queryKey: ["banks"],
     queryFn: banksApi.getAll,
   });
+
+  const { data: ingest } = useQuery({
+    queryKey: ["ingest-address"],
+    queryFn: ingestApi.getAddress,
+  });
+
+  const { data: confirmationData } = useQuery({
+    queryKey: ["ingest-confirmation"],
+    queryFn: ingestApi.getConfirmation,
+    // The Gmail confirmation mail lands shortly after the user adds the filter.
+    refetchInterval: user?.forwarding_active ? false : 10000,
+  });
+
+  const ingestAddress = ingest?.address ?? user?.ingest_address ?? null;
+  const confirmation = confirmationData?.confirmation ?? null;
+  const senders = banks.find((b) => b.id === user?.bank)?.senders ?? [];
+  const gmailFilter = senders.length ? `from:(${senders.join(" OR ")})` : "";
+
+  const copy = (label: string, value: string) => {
+    navigator.clipboard.writeText(value);
+    setCopied(label);
+    setTimeout(() => setCopied(null), 1500);
+  };
 
   const updateMutation = useMutation({
     mutationFn: authApi.updateMe,
@@ -63,9 +90,106 @@ export default function ProfilePage() {
       <div className="max-w-4xl mx-auto px-4 py-8">
         <h1 className="text-3xl font-bold text-white mb-8">Profile Settings</h1>
 
-        {/* Gmail Connection Status */}
+        {/* Email Forwarding Setup */}
         <div className="bg-gray-800 rounded-lg p-6 mb-6">
-          <h2 className="text-xl font-semibold text-white mb-4">Gmail Connection</h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-semibold text-white">Email Forwarding</h2>
+            <div className="flex items-center gap-2">
+              {user?.forwarding_active ? (
+                <>
+                  <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                  <span className="text-sm text-gray-300">Receiving emails</span>
+                </>
+              ) : (
+                <>
+                  <div className="w-3 h-3 bg-yellow-500 rounded-full animate-pulse"></div>
+                  <span className="text-sm text-gray-300">Waiting for first email…</span>
+                </>
+              )}
+            </div>
+          </div>
+
+          <p className="text-gray-400 text-sm mb-4">
+            Forward your bank notification emails to your personal Finitum address.
+            No Gmail access required — set up one filter and you're done.
+          </p>
+
+          {/* Step 1: ingest address */}
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-400 mb-1">
+              1. Your forwarding address
+            </label>
+            <div className="flex gap-2">
+              <code className="flex-1 px-3 py-2 bg-gray-900 border border-gray-700 rounded text-green-300 text-sm overflow-x-auto">
+                {ingestAddress ?? "Loading…"}
+              </code>
+              <button
+                onClick={() => ingestAddress && copy("address", ingestAddress)}
+                disabled={!ingestAddress}
+                className="px-3 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded text-sm transition-colors disabled:opacity-50"
+              >
+                {copied === "address" ? "Copied!" : "Copy"}
+              </button>
+            </div>
+          </div>
+
+          {/* Step 2: Gmail filter */}
+          {gmailFilter && (
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-400 mb-1">
+                2. In Gmail → Settings → Filters → Create a new filter, paste this in the
+                <span className="font-semibold"> From </span> field:
+              </label>
+              <div className="flex gap-2">
+                <code className="flex-1 px-3 py-2 bg-gray-900 border border-gray-700 rounded text-blue-300 text-sm overflow-x-auto">
+                  {gmailFilter}
+                </code>
+                <button
+                  onClick={() => copy("filter", gmailFilter)}
+                  className="px-3 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded text-sm transition-colors"
+                >
+                  {copied === "filter" ? "Copied!" : "Copy"}
+                </button>
+              </div>
+              <p className="text-gray-500 text-xs mt-1">
+                Then choose “Forward it to” and add the address from step 1.
+              </p>
+            </div>
+          )}
+
+          {/* Step 3: confirmation */}
+          <div>
+            <label className="block text-sm font-medium text-gray-400 mb-1">
+              3. Confirm the forwarding request
+            </label>
+            {confirmation ? (
+              <div className="px-3 py-2 bg-gray-900 border border-green-700 rounded text-sm">
+                {confirmation.url ? (
+                  <a
+                    href={confirmation.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-green-300 underline break-all"
+                  >
+                    Click here to confirm forwarding
+                  </a>
+                ) : (
+                  <span className="text-green-300">
+                    Confirmation code: <span className="font-mono">{confirmation.code}</span>
+                  </span>
+                )}
+              </div>
+            ) : (
+              <p className="text-gray-500 text-sm">
+                Gmail will send a confirmation request — it'll appear here automatically.
+              </p>
+            )}
+          </div>
+        </div>
+
+        {/* Google Sign-in Status */}
+        <div className="bg-gray-800 rounded-lg p-6 mb-6">
+          <h2 className="text-xl font-semibold text-white mb-4">Google Sign-in</h2>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               {user?.has_google_credentials ? (
@@ -109,7 +233,7 @@ export default function ProfilePage() {
                   d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
                 />
               </svg>
-              {user?.has_google_credentials ? "Reconnect Gmail" : "Connect Gmail"}
+              {user?.has_google_credentials ? "Reconnect Google" : "Sign in with Google"}
             </a>
           </div>
         </div>
