@@ -28,7 +28,7 @@ export const meta: MetaFunction = () => [
   { name: "author", content: "Finitum" },
   { name: "application-name", content: "Finitum" },
   { property: "og:type", content: "website" },
-  { property: "og:url", content: "https://finitum.richardhapb.com/" },
+  { property: "og:url", content: "https://finitum.app/" },
   {
     property: "og:title",
     content: "Finitum - Personal Finance Manager | Automatic Expense Tracking",
@@ -40,7 +40,7 @@ export const meta: MetaFunction = () => [
   },
   { property: "og:site_name", content: "Finitum" },
   { property: "twitter:card", content: "summary_large_image" },
-  { property: "twitter:url", content: "https://finitum.richardhapb.com/" },
+  { property: "twitter:url", content: "https://finitum.app/" },
   {
     property: "twitter:title",
     content: "Finitum - Personal Finance Manager | Automatic Expense Tracking",
