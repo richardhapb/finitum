@@ -7,19 +7,22 @@ services:
         env_file: .env.prod
         environment:
             - DEBUG=false
-        volumes: []
+        # !reset clears the dev bind-mounts inherited from docker-compose.yml so
+        # prod runs purely the baked image (requires Docker Compose v2.24+).
+        volumes: !reset []
 
     worker:
         image: ghcr.io/richardhapb/finitum-api:latest
         command: celery -A tasks.app:celery worker --loglevel=INFO --concurrency=${CELERY_CONCURRENCY:-2}
         env_file: .env.prod
-        volumes: []
+        volumes: !reset []
 
     beat:
         image: ghcr.io/richardhapb/finitum-api:latest
         env_file: .env.prod
-        volumes: []
+        volumes: !reset []
 
     alembic:
         env_file: .env.prod
         image: ghcr.io/richardhapb/finitum-api:latest
+        volumes: !reset []
