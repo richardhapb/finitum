@@ -38,6 +38,7 @@ export default function ProfilePage() {
   const ingestAddress = ingest?.address ?? user?.ingest_address ?? null;
   const confirmation = confirmationData?.confirmation ?? null;
   const senders = banks.find((b) => b.id === user?.bank)?.senders ?? [];
+  // Gmail search-bar query: paste into the search box, then "Create filter".
   const gmailFilter = senders.length ? `from:(${senders.join(" OR ")})` : "";
 
   const copy = (label: string, value: string) => {
@@ -133,32 +134,20 @@ export default function ProfilePage() {
             </div>
           </div>
 
-          {/* Step 2: Gmail filter */}
-          {gmailFilter && (
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-400 mb-1">
-                2. In Gmail → Settings → Filters → Create a new filter, paste this in the
-                <span className="font-semibold"> From </span> field:
-              </label>
-              <div className="flex gap-2">
-                <code className="flex-1 px-3 py-2 bg-gray-900 border border-gray-700 rounded text-blue-300 text-sm overflow-x-auto">
-                  {gmailFilter}
-                </code>
-                <button
-                  onClick={() => copy("filter", gmailFilter)}
-                  className="px-3 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded text-sm transition-colors"
-                >
-                  {copied === "filter" ? "Copied!" : "Copy"}
-                </button>
-              </div>
-              <p className="text-gray-500 text-xs mt-1">
-                Then choose “Forward it to” and add the address from step 1.
-              </p>
-            </div>
-          )}
+          {/* Step 2: add the forwarding address */}
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-400 mb-1">
+              2. Add it as a forwarding address
+            </label>
+            <p className="text-gray-500 text-xs">
+              In Gmail → Settings → “Forwarding and POP/IMAP” → “Add a forwarding
+              address”, paste the address from step 1. Gmail sends it a confirmation
+              request, which is captured automatically below.
+            </p>
+          </div>
 
           {/* Step 3: confirmation */}
-          <div>
+          <div className="mb-4">
             <label className="block text-sm font-medium text-gray-400 mb-1">
               3. Confirm the forwarding request
             </label>
@@ -185,6 +174,30 @@ export default function ProfilePage() {
               </p>
             )}
           </div>
+
+          {/* Step 4: forwarding filter via Gmail search */}
+          {gmailFilter && (
+            <div>
+              <label className="block text-sm font-medium text-gray-400 mb-1">
+                4. Forward your bank emails
+              </label>
+              <p className="text-gray-500 text-xs mb-1">
+                Paste this into the Gmail search bar, open the search options (▾) and
+                click “Create filter”, then check “Forward it to” → your address.
+              </p>
+              <div className="flex gap-2">
+                <code className="flex-1 px-3 py-2 bg-gray-900 border border-gray-700 rounded text-blue-300 text-sm overflow-x-auto">
+                  {gmailFilter}
+                </code>
+                <button
+                  onClick={() => copy("filter", gmailFilter)}
+                  className="px-3 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded text-sm transition-colors"
+                >
+                  {copied === "filter" ? "Copied!" : "Copy"}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Google Sign-in Status */}
