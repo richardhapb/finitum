@@ -182,8 +182,9 @@ export default function ProfilePage() {
                 4. Forward your bank emails
               </label>
               <p className="text-gray-500 text-xs mb-1">
-                Paste this into the Gmail search bar, open the search options (▾) and
-                click “Create filter”, then check “Forward it to” → your address.
+                Paste this into the Gmail search bar, click the filter icon (the
+                sliders ⚙ on the right of the search bar) to open search options,
+                then “Create filter” → check “Forward it to” → your address.
               </p>
               <div className="flex gap-2">
                 <code className="flex-1 px-3 py-2 bg-gray-900 border border-gray-700 rounded text-blue-300 text-sm overflow-x-auto">
