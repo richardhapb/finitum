@@ -58,11 +58,10 @@ class UserGoogleCredential(SQLModel, table=True):
     user_id: int = Field(foreign_key="users.id")
     user: "User" = Relationship(back_populates="google_credentials", sa_relationship_kwargs={"uselist": False})
 
-    token: str | None = Field(default=None, sa_column=Column(Text))  # access token (optional to persist)
-    refresh_token: str = Field(sa_column=Column(Text))  # long
+    token: str | None = Field(default=None, sa_column=Column(Text))  # access token (optional to persist), encrypted
+    refresh_token: str = Field(sa_column=Column(Text))  # long, encrypted
     token_uri: str = Field(sa_column=Column(Text))
     client_id: str = Field(sa_column=Column(Text))
-    client_secret: str = Field(sa_column=Column(Text))
 
     # store JSON arrays as TEXT; parse on load/save
     scopes_json: str = Field(sa_column=Column(Text))
@@ -95,7 +94,7 @@ class Expense(SQLModel, table=True):
     amount: float = Field()
     currency: Currency = Field(default=Currency.CLP)
     category_id: int = Field(foreign_key="categories.id", index=True)
-    date: datetime = Field(default_factory=datetime.now)
+    date: datetime = Field(default_factory=minimum_date_factory)
     description: str | None = Field(default=None)
 
 
@@ -107,7 +106,7 @@ class Transference(SQLModel, table=True):
     amount: float = Field()
     currency: Currency = Field(default=Currency.CLP)
     category: ExpenseCategory = Field(default=ExpenseCategory.GENERAL)
-    date: datetime = Field(default_factory=datetime.now)
+    date: datetime = Field(default_factory=minimum_date_factory)
     description: str | None = Field(default=None)
 
 
@@ -322,6 +321,14 @@ def rebuild_credentials(credentials: dict[str, Any] | UserGoogleCredential) -> C
     sc_attr = getattr(credentials, "scopes", None)
     scopes = _to_scopes(sc_attr or getattr(credentials, "granted_scopes", None))
     id_token = getattr(credentials, "id_token", None)
+
+    # Stored credentials persist token/refresh_token/id_token encrypted at rest.
+    if isinstance(credentials, UserGoogleCredential):
+        from utils.crypto import decrypt
+
+        refresh_token = decrypt(refresh_token)
+        token = decrypt(token)
+        id_token = decrypt(id_token)
     expiry = _to_naive_utc(getattr(credentials, "expiry", None))
 
     missing = [

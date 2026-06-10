@@ -2,15 +2,20 @@ import json
 import os
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, cast
 
-import jwt
+import google.auth.transport.requests
 import redis
-from fastapi import Depends, FastAPI, Request, Response, status
+from fastapi import Depends, FastAPI, Query, Request, Response, status
 from fastapi.exceptions import HTTPException
 from fastapi.responses import JSONResponse, RedirectResponse
+from google.auth.exceptions import GoogleAuthError
+from google.oauth2 import id_token as google_id_token
 from oauthlib.oauth2.rfc6749.errors import OAuth2Error
+from slowapi import Limiter, _rate_limit_exceeded_handler  # noqa: PLC2701
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 from sqlmodel import Session, or_, select
 from starlette.middleware.cors import CORSMiddleware
 
@@ -54,6 +59,7 @@ from utils.config import (
     REFRESH_TOKEN_KEY,
     WEB_ADDRESS,
 )
+from utils.crypto import encrypt
 from utils.logger import get_logger
 
 if TYPE_CHECKING:
@@ -82,6 +88,11 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan,
 )
+
+# Rate limiting (per client IP) for sensitive auth endpoints.
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # CORS: Must use explicit origins when credentials are enabled (not "*")
 _default_origins = "http://localhost:5173 http://localhost:9090 http://localhost:8081"
@@ -159,8 +170,15 @@ def require_user_id(user: User) -> int:
 
 @app.get("/health", response_class=JSONResponse)
 async def health() -> JSONResponse:
-    redis_status = "OK" if redis_client.ping() else "FAILED"
-    return JSONResponse(status_code=200, content={"message": "OK", "redis": redis_status})
+    try:
+        redis_ok = bool(redis_client.ping())
+    except redis.RedisError:
+        logger.exception("Redis health check failed")
+        redis_ok = False
+
+    if not redis_ok:
+        return JSONResponse(status_code=503, content={"message": "FAILED", "redis": "FAILED"})
+    return JSONResponse(status_code=200, content={"message": "OK", "redis": "OK"})
 
 
 @app.get("/banks")
@@ -182,7 +200,8 @@ async def debug_session() -> JSONResponse:
 
 
 @app.post("/signup", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
-def signup(user_data: UserCreate, session: Session = Depends(get_session)) -> User:
+@limiter.limit("5/minute")
+def signup(request: Request, user_data: UserCreate, session: Session = Depends(get_session)) -> User:  # noqa: ARG001
     """
     Register a new user in the system.
 
@@ -218,30 +237,37 @@ def signup(user_data: UserCreate, session: Session = Depends(get_session)) -> Us
 
 
 @app.post("/signin", response_model=UserLoginResponse, status_code=status.HTTP_200_OK)
-def signin(response: Response, user_data: UserLogin, session: Session = Depends(get_session)) -> dict[str, str | User]:
+@limiter.limit("5/minute")
+def signin(
+    request: Request,  # noqa: ARG001
+    response: Response,
+    user_data: UserLogin,
+    session: Session = Depends(get_session),
+) -> dict[str, str | User]:
+    invalid_credentials = HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN, detail="Invalid credentials"
+    )
+
     existing_user = session.exec(
         select(User).where(or_(User.email == user_data.email, User.username == user_data.username))
     ).first()
 
     if not existing_user:
         field = "email" if user_data.email else "username"
-        msg = f"User with this {field} doesn't exist"
-        logger.error(msg)
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=msg)
+        logger.error("User with this %s doesn't exist", field)
+        raise invalid_credentials
 
     if not existing_user.password:
-        msg = "User registered with google OAuth, init with google account instead"
-        logger.error(msg)
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=msg)
+        logger.error("User %s registered with google OAuth, init with google account instead", existing_user.username)
+        raise invalid_credentials
 
     logger.debug("Trying to login: %s", existing_user.username)
 
     if not existing_user.verify_password(user_data.password):
-        msg = "Incorrect password"
-        logger.error(msg)
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=msg)
+        logger.error("Incorrect password for user %s", existing_user.username)
+        raise invalid_credentials
 
-    data = {"sub": str(existing_user.username)}
+    data = {"sub": str(require_user_id(existing_user))}
     access_token = Token.create_access_token(data=data)
     refresh_token = Token.create_refresh_token(data=data)
 
@@ -359,14 +385,20 @@ def create_category(
 
 @app.get("/expenses", response_model=list[ExpenseRead])
 def get_expenses(
-    current_user: User = Depends(get_current_user), session: Session = Depends(get_session)
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+    limit: int = Query(default=100, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
 ) -> list[ExpenseRead]:
-    """Get all expenses for the current user."""
+    """Get expenses for the current user, most recent first."""
     user_id = require_user_id(current_user)
     expenses = session.exec(
         select(DBExpense, Category)
         .join(Category, DBExpense.category_id == Category.id)
         .where(DBExpense.user_id == user_id)
+        .order_by(DBExpense.date.desc())
+        .limit(limit)
+        .offset(offset)
     ).all()
     return [serialize_expense(expense, category) for expense, category in expenses]
 
@@ -391,7 +423,7 @@ def create_expense(
         amount=expense_data.amount,
         currency=expense_data.currency,
         category_id=category.id,
-        date=expense_data.date if expense_data.date else datetime.now(),
+        date=expense_data.date if expense_data.date else datetime.now(UTC),
         description=expense_data.description,
     )
     session.add(new_expense)
@@ -406,9 +438,9 @@ def delete_expense(
 ) -> JSONResponse:
     """Get all expenses for the current user."""
     user_id = require_user_id(current_user)
-    expense = session.exec(select(DBExpense).where(DBExpense.user_id == user_id, DBExpense.id == id)).one()
+    expense = session.exec(select(DBExpense).where(DBExpense.user_id == user_id, DBExpense.id == id)).first()
     if not expense:
-        HTTPException(detail=f"Expense not found: {id}", status_code=status.HTTP_404_NOT_FOUND)
+        raise HTTPException(detail=f"Expense not found: {id}", status_code=status.HTTP_404_NOT_FOUND)
     session.delete(expense)
     session.commit()
     return JSONResponse(content={"msg": "OK"})
@@ -416,11 +448,20 @@ def delete_expense(
 
 @app.get("/transferences", response_model=list[TransferenceRead])
 def get_transferences(
-    current_user: User = Depends(get_current_user), session: Session = Depends(get_session)
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+    limit: int = Query(default=100, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
 ) -> list[TransferenceRead]:
-    """Get all transferences for the current user."""
+    """Get transferences for the current user, most recent first."""
     user_id = require_user_id(current_user)
-    transferences = session.exec(select(DBTransference).where(DBTransference.user_id == user_id)).all()
+    transferences = session.exec(
+        select(DBTransference)
+        .where(DBTransference.user_id == user_id)
+        .order_by(DBTransference.date.desc())
+        .limit(limit)
+        .offset(offset)
+    ).all()
     result = []
     for t in transferences:
         category = get_global_category_by_slug(session, t.category.value)
@@ -482,6 +523,37 @@ def auth_google() -> RedirectResponse:
     return RedirectResponse(auth_url)
 
 
+def verify_google_id_token(raw_id_token: str | list[str] | None) -> str:
+    """Verify a Google id_token and return the verified, email-verified email.
+
+    Raises HTTPException(400) if the token is missing, fails signature/audience
+    verification, the email is not verified, or the email claim is absent.
+    """
+    if not raw_id_token:
+        raise HTTPException(status_code=400, detail="Missing id_token from Google")
+    if not isinstance(raw_id_token, str):
+        raise HTTPException(status_code=400, detail="Invalid id_token from Google")
+
+    try:
+        decoded = google_id_token.verify_oauth2_token(
+            raw_id_token,
+            google.auth.transport.requests.Request(),
+            google_oauth.CLIENT_ID,
+            clock_skew_in_seconds=10,
+        )
+    except (GoogleAuthError, ValueError) as exc:
+        logger.exception("Google id_token verification failed")
+        raise HTTPException(status_code=400, detail="Invalid Google token") from exc
+
+    if decoded.get("email_verified") is not True:
+        raise HTTPException(status_code=400, detail="Google email is not verified")
+
+    email = decoded.get("email")
+    if not email:
+        raise HTTPException(status_code=400, detail="Email not present in Google token")
+    return str(email)
+
+
 @app.get("/google_oauth2callback")
 def google_callback(
     request: Request,
@@ -510,17 +582,7 @@ def google_callback(
         logger.exception("OAuth token exchange failed")
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    id_token = credentials_dict.get("id_token")
-    if not id_token:
-        raise HTTPException(status_code=400, detail="Missing id_token from Google")
-
-    assert isinstance(id_token, str)
-    decoded = jwt.decode(id_token, options={"verify_signature": False})
-
-    email = decoded.get("email")
-    if not email:
-        raise HTTPException(status_code=400, detail="Email not present in Google token")
-
+    email = verify_google_id_token(credentials_dict.get("id_token"))
     user = session.exec(select(User).where(User.email == email)).first()
 
     granted_scopes = credentials_dict.get("granted_scopes") or []
@@ -534,8 +596,9 @@ def google_callback(
 
     save_credentials(user, credentials_dict, session)
 
-    access = Token.create_access_token({"sub": user.username})
-    refresh = Token.create_refresh_token({"sub": user.username})
+    sub = {"sub": str(require_user_id(user))}
+    access = Token.create_access_token(sub)
+    refresh = Token.create_refresh_token(sub)
     scan_status = "skipped_scope"
     if gmail_granted:
         try:
@@ -582,15 +645,14 @@ def save_credentials(user: User, credentials: dict[str, str | list[str] | None],
     new_cred_data = {
         "user_id": user.id,
         "user": user,
-        "token": str(credentials.get("token", "")),
-        "refresh_token": str(credentials.get("refresh_token", "")),
+        "token": encrypt(str(credentials.get("token", ""))),
+        "refresh_token": encrypt(str(credentials.get("refresh_token", ""))),
         "token_uri": str(credentials.get("token_uri", "")),
         "client_id": str(credentials.get("client_id", "")),
-        "client_secret": str(credentials.get("client_secret", "")),
         "scopes_json": json.dumps(credentials.get("scopes", [])),
         "granted_scopes_json": json.dumps(credentials.get("granted_scopes", [])),
         "expiry": datetime.fromisoformat(str(credentials["expiry"])) if credentials.get("expiry") else None,
-        "id_token": str(credentials.get("id_token")) if credentials.get("id_token") else None,
+        "id_token": encrypt(str(credentials.get("id_token"))) if credentials.get("id_token") else None,
         "is_valid": True,
     }
 

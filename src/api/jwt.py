@@ -84,16 +84,21 @@ class Token:
         if payload is None:
             raise refresh_exception
 
-        username: str | None = payload.get("sub")
-        if username is None:
+        sub: str | None = payload.get("sub")
+        if sub is None:
             raise refresh_exception
 
-        user = session.exec(select(User).where(User.username == username)).first()
+        try:
+            user_id = int(sub)
+        except ValueError:
+            raise refresh_exception from None
+
+        user = session.exec(select(User).where(User.id == user_id)).first()
         if user is None:
             raise refresh_exception
 
         # Create new access token
-        access_token_data = {"sub": user.username}
+        access_token_data = {"sub": str(user.id)}
         return cls.create_access_token(access_token_data)
 
     @classmethod
@@ -148,12 +153,18 @@ async def get_current_user(
             raise credentials_exception
         set_access_cookie(response, access_token)
 
-    username: str | None = payload.get("sub")
-    if username is None:
-        logger.debug("Username not found")
+    sub: str | None = payload.get("sub")
+    if sub is None:
+        logger.debug("Subject not found")
         raise credentials_exception
 
-    user = session.exec(select(User).where(User.username == username)).first()
+    try:
+        user_id = int(sub)
+    except ValueError:
+        logger.debug("Subject is not a valid user id")
+        raise credentials_exception from None
+
+    user = session.exec(select(User).where(User.id == user_id)).first()
     if user is None:
         logger.debug("User not found")
         raise credentials_exception
