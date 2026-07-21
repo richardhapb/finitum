@@ -2,7 +2,7 @@ import type { MetaFunction } from "react-router";
 
 export const meta: MetaFunction = () => [
   { title: "Privacy Policy - Finitum" },
-  { name: "description", content: "Finitum privacy policy. Learn how Finitum handles your Gmail data and protects your privacy." },
+  { name: "description", content: "Finitum privacy policy. Learn how Finitum handles the bank emails you forward and protects your privacy." },
 ];
 
 export default function Privacy() {
@@ -14,9 +14,12 @@ export default function Privacy() {
           <p>Finitum respects your privacy.</p>
 
           <p>
-            Finitum only accesses Gmail data with the user's explicit consent, and
-            only for the purpose of extracting financial transaction information
-            from bank notification emails.
+            Finitum does not access your email account or your bank. It only
+            processes the emails you explicitly forward to your personal
+            Finitum address, for the sole purpose of extracting financial
+            transaction information from bank notification emails. You control
+            what is forwarded and can stop at any time by removing the
+            forwarding rule.
           </p>
 
           <p>
@@ -25,14 +28,18 @@ export default function Privacy() {
             is saved to provide financial analytics.
           </p>
 
+          <p>
+            Google sign-in is optional and used for authentication only.
+            Finitum does not request access to Gmail or to any email content.
+          </p>
+
           <h2 className="text-xl font-semibold text-white pt-4">Data Retention and Deletion</h2>
 
           <p>
-            Google user data, including Gmail message content accessed during
-            transaction extraction, is processed in real time and is not stored
-            beyond the immediate processing session. Only the derived transaction
-            data (amount, merchant, date, category) is retained in your account
-            for as long as your account remains active.
+            Forwarded emails are processed in real time and are not stored
+            beyond the immediate processing session. Only the derived
+            transaction data (amount, merchant, date, category) is retained in
+            your account for as long as your account remains active.
           </p>
 
           <p>
@@ -47,16 +54,32 @@ export default function Privacy() {
           </p>
 
           <p>
-            OAuth tokens granted by Google are stored securely and are revoked
-            and deleted when you disconnect your Google account or delete your
-            Finitum account.
+            Tokens granted by Google for sign-in are stored securely and are
+            revoked and deleted when you disconnect your Google account or
+            delete your Finitum account.
           </p>
 
           <p>Finitum does not sell, share, or use user data for advertising purposes.</p>
 
           <p>
-            Authentication is handled securely using Google OAuth2 and JWT tokens.
-            Sensitive credentials and tokens are stored securely.
+            Authentication is handled securely using JWT tokens, with optional
+            Google OAuth2 sign-in. Sensitive credentials and tokens are stored
+            securely.
+          </p>
+
+          <p>
+            Finitum is open-source software (MIT license); you can inspect
+            exactly how your data is handled, or self-host your own instance,
+            at{" "}
+            <a
+              href="https://github.com/richardhapb/finitum"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-400 hover:underline"
+            >
+              github.com/richardhapb/finitum
+            </a>
+            .
           </p>
 
           <p>

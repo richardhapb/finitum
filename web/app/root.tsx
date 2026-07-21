@@ -19,11 +19,11 @@ export const links: LinksFunction = () => [
 export const meta: MetaFunction = () => [
   { charSet: "utf-8" },
   { name: "viewport", content: "width=device-width, initial-scale=1.0" },
-  { title: "Finitum - Personal Finance Manager | Automatic Expense Tracking" },
+  { title: "Finitum - Open-Source Finance Tracker | Automatic Expense Tracking" },
   {
     name: "description",
     content:
-      "Finitum is a personal finance manager that automatically tracks your expenses by parsing bank notification emails from your Gmail. View spending analytics, categorize transactions, and take control of your finances with privacy-first design.",
+      "Finitum is an open-source personal finance tracker that automatically parses the notification emails you forward from your bank. No bank credentials, no inbox access. View spending analytics, categorize transactions, and self-host if you want.",
   },
   { name: "author", content: "Finitum" },
   { name: "application-name", content: "Finitum" },
@@ -31,24 +31,24 @@ export const meta: MetaFunction = () => [
   { property: "og:url", content: "https://finitum.app/" },
   {
     property: "og:title",
-    content: "Finitum - Personal Finance Manager | Automatic Expense Tracking",
+    content: "Finitum - Open-Source Finance Tracker | Automatic Expense Tracking",
   },
   {
     property: "og:description",
     content:
-      "Finitum is a personal finance manager that automatically tracks your expenses by parsing bank notification emails from your Gmail. View spending analytics and take control of your finances.",
+      "Open-source personal finance tracker: forward your bank's notification emails and get automatic expense tracking with spending analytics. No bank credentials, no inbox access.",
   },
   { property: "og:site_name", content: "Finitum" },
   { property: "twitter:card", content: "summary_large_image" },
   { property: "twitter:url", content: "https://finitum.app/" },
   {
     property: "twitter:title",
-    content: "Finitum - Personal Finance Manager | Automatic Expense Tracking",
+    content: "Finitum - Open-Source Finance Tracker | Automatic Expense Tracking",
   },
   {
     property: "twitter:description",
     content:
-      "Finitum is a personal finance manager that automatically tracks your expenses by parsing bank notification emails from your Gmail. View spending analytics and take control of your finances.",
+      "Open-source personal finance tracker: forward your bank's notification emails and get automatic expense tracking with spending analytics. No bank credentials, no inbox access.",
   },
   {
     name: "google-site-verification",
@@ -58,7 +58,7 @@ export const meta: MetaFunction = () => [
 
 export function Layout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="es">
+    <html lang="en">
       <head>
         <Meta />
         <Links />

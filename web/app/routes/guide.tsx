@@ -1,5 +1,7 @@
 import { Link } from "react-router";
 
+const GITHUB_URL = "https://github.com/richardhapb/finitum";
+
 export default function GuidePage() {
   return (
     <div className="min-h-screen bg-gray-900 text-white">
@@ -24,9 +26,11 @@ export default function GuidePage() {
 
       {/* Header */}
       <section className="max-w-4xl mx-auto px-4 py-12">
-        <h1 className="text-4xl font-bold mb-4">Getting Started</h1>
+        <h1 className="text-4xl font-bold mb-4">How Finitum Works</h1>
         <p className="text-xl text-gray-400">
-          Follow these steps to start tracking your expenses automatically.
+          Your bank already emails you every transaction. Set up a one-time
+          forwarding rule and Finitum does the rest -- no bank credentials, no
+          inbox access.
         </p>
       </section>
 
@@ -42,7 +46,9 @@ export default function GuidePage() {
               <div>
                 <h2 className="text-xl font-semibold mb-2">Create an Account</h2>
                 <p className="text-gray-400 mb-4">
-                  Sign up with your email and password, or use Google to create an account instantly.
+                  Sign up with your email and password, or use Google sign-in.
+                  Either way, Finitum never accesses your email account --
+                  Google is used for login only.
                 </p>
                 <Link
                   to="/signup"
@@ -61,18 +67,16 @@ export default function GuidePage() {
                 2
               </div>
               <div>
-                <h2 className="text-xl font-semibold mb-2">Connect Your Gmail</h2>
+                <h2 className="text-xl font-semibold mb-2">
+                  Get Your Forwarding Address
+                </h2>
                 <p className="text-gray-400 mb-4">
-                  Link your Google account to allow Finitum to read your bank notification emails.
-                  We only access emails from financial institutions to extract transaction data.
+                  In your profile, select your bank and copy your personal
+                  Finitum address (it looks like{" "}
+                  <code className="text-green-300">u-a1b2c3@finitum.app</code>).
+                  This address is unique to you -- emails sent to it land in
+                  your account and nowhere else.
                 </p>
-                <div className="bg-gray-700/50 rounded p-4 text-sm text-gray-300">
-                  <strong className="text-white">What we access:</strong>
-                  <ul className="mt-2 space-y-1 list-disc list-inside">
-                    <li>Bank transaction notification emails</li>
-                    <li>Payment confirmations from supported banks</li>
-                  </ul>
-                </div>
               </div>
             </div>
           </div>
@@ -84,10 +88,43 @@ export default function GuidePage() {
                 3
               </div>
               <div>
-                <h2 className="text-xl font-semibold mb-2">Automatic Import</h2>
+                <h2 className="text-xl font-semibold mb-2">
+                  Set Up the Forwarding Rule
+                </h2>
                 <p className="text-gray-400 mb-4">
-                  Once connected, Finitum automatically scans your inbox for transaction emails
-                  and extracts the relevant data: amount, merchant, date, and category.
+                  In Gmail, add your Finitum address as a forwarding address and
+                  create a filter that forwards only your bank's notification
+                  emails. Your profile page walks you through it: Gmail's
+                  confirmation request is captured automatically, and the filter
+                  for your bank's senders is generated for you -- just copy and
+                  paste.
+                </p>
+                <div className="bg-gray-700/50 rounded p-4 text-sm text-gray-300">
+                  <strong className="text-white">You stay in control:</strong>
+                  <ul className="mt-2 space-y-1 list-disc list-inside">
+                    <li>Only emails matching your filter are forwarded</li>
+                    <li>Finitum never connects to your inbox or your bank</li>
+                    <li>Remove the rule at any time to stop instantly</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Step 4 */}
+          <div className="bg-gray-800 rounded-lg p-6">
+            <div className="flex items-start gap-4">
+              <div className="flex-shrink-0 w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center font-bold text-lg">
+                4
+              </div>
+              <div>
+                <h2 className="text-xl font-semibold mb-2">
+                  Transactions Appear Automatically
+                </h2>
+                <p className="text-gray-400 mb-4">
+                  From then on, every bank notification is parsed the moment it
+                  arrives. The raw email is processed in real time and never
+                  stored -- only the extracted transaction data.
                 </p>
                 <div className="bg-gray-700/50 rounded p-4 text-sm text-gray-300">
                   <strong className="text-white">Extracted data:</strong>
@@ -102,17 +139,19 @@ export default function GuidePage() {
             </div>
           </div>
 
-          {/* Step 4 */}
+          {/* Step 5 */}
           <div className="bg-gray-800 rounded-lg p-6">
             <div className="flex items-start gap-4">
               <div className="flex-shrink-0 w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center font-bold text-lg">
-                4
+                5
               </div>
               <div>
-                <h2 className="text-xl font-semibold mb-2">View Your Dashboard</h2>
+                <h2 className="text-xl font-semibold mb-2">
+                  Explore Your Dashboard
+                </h2>
                 <p className="text-gray-400 mb-4">
-                  Head to your dashboard to see all your expenses in one place. View charts,
-                  filter by category, and understand your spending patterns.
+                  See all your expenses in one place, and add manual entries for
+                  cash or anything not covered by email.
                 </p>
                 <ul className="text-gray-400 space-y-2">
                   <li className="flex items-center gap-2">
@@ -132,20 +171,34 @@ export default function GuidePage() {
             </div>
           </div>
 
-          {/* Step 5 */}
-          <div className="bg-gray-800 rounded-lg p-6">
-            <div className="flex items-start gap-4">
-              <div className="flex-shrink-0 w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center font-bold text-lg">
-                5
-              </div>
-              <div>
-                <h2 className="text-xl font-semibold mb-2">Add Manual Expenses</h2>
-                <p className="text-gray-400 mb-4">
-                  For cash transactions or expenses not captured by email, you can manually
-                  add entries directly from your dashboard.
-                </p>
-              </div>
-            </div>
+          {/* Bank not supported */}
+          <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-6">
+            <h2 className="text-xl font-semibold mb-2">
+              Bank not supported yet?
+            </h2>
+            <p className="text-gray-400">
+              Finitum is open source and bank parsers are community-built --
+              adding a bank takes a JSON definition and a few sample emails, no
+              core code.{" "}
+              <a
+                href={`${GITHUB_URL}/blob/main/docs/adding-a-bank.md`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-400 hover:underline"
+              >
+                Read the guide
+              </a>{" "}
+              or{" "}
+              <a
+                href={`${GITHUB_URL}/issues/new?template=add-a-bank.yml`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-400 hover:underline"
+              >
+                request your bank on GitHub
+              </a>
+              .
+            </p>
           </div>
         </div>
 
@@ -166,9 +219,14 @@ export default function GuidePage() {
         <div className="flex justify-between items-center text-gray-400 text-sm">
           <Link to="/" className="hover:text-white transition-colors">Finitum</Link>
           <div className="flex gap-6">
-            <Link to="/guide" className="hover:text-white transition-colors">
-              Guide
-            </Link>
+            <a
+              href={GITHUB_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-white transition-colors"
+            >
+              GitHub
+            </a>
             <Link to="/privacy" className="hover:text-white transition-colors">
               Privacy Policy
             </Link>

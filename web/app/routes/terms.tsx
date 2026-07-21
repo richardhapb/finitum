@@ -29,6 +29,19 @@ export default function Terms() {
           </p>
 
           <p>
+            Finitum is open-source software released under the MIT license:{" "}
+            <a
+              href="https://github.com/richardhapb/finitum"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-400 hover:underline"
+            >
+              github.com/richardhapb/finitum
+            </a>
+            . You are free to self-host your own instance.
+          </p>
+
+          <p>
             Contact:{" "}
             <a href="mailto:finitumapp@gmail.com" className="text-blue-400 hover:underline">
               finitumapp@gmail.com
