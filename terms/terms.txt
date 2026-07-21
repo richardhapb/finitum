@@ -11,4 +11,8 @@ the information provided by the application.
 By using the service, you agree to the collection and use of data
 as described in the Privacy Policy.
 
+Finitum is open-source software released under the MIT license:
+https://github.com/richardhapb/finitum. You are free to self-host
+your own instance.
+
 Contact: finitumapp@gmail.com

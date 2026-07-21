@@ -1,0 +1,60 @@
+name: Add a bank
+description: Request support for a new bank, or start contributing a parser yourself
+title: "[bank] "
+labels: ["bank-parser"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping Finitum support more banks! Parsers are data-driven -- you can add one yourself
+        with no engine code by following [docs/adding-a-bank.md](../blob/main/docs/adding-a-bank.md).
+        If you'd rather not, fill this out with sanitized samples and someone can pick it up.
+
+        **Important: sanitize every sample.** Replace real names, account numbers, national ids, and card
+        digits with fake values of the same shape (same length/format).
+  - type: input
+    id: bank
+    attributes:
+      label: Bank name and country
+      placeholder: "e.g. Banco Estado (Chile)"
+    validations:
+      required: true
+  - type: input
+    id: senders
+    attributes:
+      label: Sender addresses
+      description: The From addresses the bank uses for notification emails.
+      placeholder: "e.g. notifications@bank.com, alerts@bank.com"
+    validations:
+      required: true
+  - type: checkboxes
+    id: types
+    attributes:
+      label: Notification types the bank sends
+      options:
+        - label: Purchases (card payments)
+        - label: ATM withdrawals
+        - label: Transfers
+  - type: textarea
+    id: samples
+    attributes:
+      label: Sanitized sample emails
+      description: |
+        For each type, paste the subject and the body (use "Show Original" in Gmail, then sanitize).
+        Keep the exact spacing/encoding artifacts -- they matter for the regexes.
+      render: text
+    validations:
+      required: true
+  - type: checkboxes
+    id: intent
+    attributes:
+      label: Contribution
+      options:
+        - label: I plan to open a PR for this parser myself
+  - type: checkboxes
+    id: sanitized
+    attributes:
+      label: Confirmation
+      options:
+        - label: I confirm the samples above contain no real personal or account data
+          required: true
