@@ -5,7 +5,7 @@
 Finitum is an open-source personal finance tracker. Instead of scraping your bank or asking for your credentials, it uses the emails your bank already sends you: you set up a one-time forwarding rule, and every purchase, withdrawal, and transfer notification is parsed into a transaction (amount, merchant, date, category) and shown on your dashboard.
 
 - **No inbox access.** Finitum never reads your email account. You forward only the bank notifications you choose; Google sign-in is optional and used for login only.
-- **Community bank parsers.** Every bank's email format is described in a single JSON file -- no engine code needed. Adding your bank is a JSON block plus a couple of test fixtures. See [Adding a bank](docs/adding-a-bank.md).
+- **Quick-implementation bank parsers.** Every bank's email format is described in a single JSON file -- no engine code needed. Adding your bank is a JSON block plus a couple of test fixtures. See [Adding a bank](docs/adding-a-bank.md).
 - **Self-hostable.** One `docker compose up` runs the whole stack. A hosted instance lives at [finitum.app](https://finitum.app).
 - **Privacy first.** Raw email content is processed in real time and never stored -- only the extracted transaction data.
 
