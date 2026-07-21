@@ -41,6 +41,58 @@ jobs:
       - name: Run tests
         run: uv run pytest -q
 
+  changes:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    outputs:
+      web: ${{ steps.filter.outputs.web }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Detect changed areas
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            # ci.yml is included so pipeline changes force one web republish,
+            # keeping the served build in sync with the deploy mechanism.
+            web:
+              - 'web/**'
+              - '.github/workflows/ci.yml'
+
+  build-web:
+    needs: [lint-test, changes]
+    if: needs.changes.outputs.web == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies
+        working-directory: web
+        run: bun install --frozen-lockfile
+
+      - name: Build
+        working-directory: web
+        env:
+          # Public by nature (baked into the shipped bundle), hence a var.
+          VITE_API_URL: ${{ vars.WEB_API_URL }}
+        run: bun run build
+
+      - name: Pack
+        run: tar -czf finitum-web.tgz -C web/build/client .
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: finitum-web
+          path: finitum-web.tgz
+          retention-days: 1
+
   build-push:
     needs: lint-test
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -85,8 +137,15 @@ jobs:
           cache-to: type=gha,mode=max
 
   deploy:
-    needs: build-push
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [build-push, build-web]
+    # always() lets this run when build-web was legitimately SKIPPED (no web
+    # changes); the explicit result checks still require build-push to succeed
+    # and build-web to not have failed.
+    if: >-
+      always() &&
+      github.event_name == 'push' && github.ref == 'refs/heads/main' &&
+      needs.build-push.result == 'success' &&
+      contains(fromJSON('["success", "skipped"]'), needs.build-web.result)
     runs-on: ubuntu-latest
     # Deploys serialize but NEVER cancel each other — half a `docker compose up`
     # is worse than a queued deploy.
@@ -94,20 +153,42 @@ jobs:
       group: deploy-production
       cancel-in-progress: false
     steps:
+      - name: Download web build
+        if: needs.build-web.result == 'success'
+        uses: actions/download-artifact@v4
+        with:
+          name: finitum-web
+
+      # The tarball lands in the deploy user's home at a fixed path the
+      # server-side script expects; no sudo involved in the transfer.
+      - name: Upload web build to server
+        if: needs.build-web.result == 'success'
+        uses: appleboy/scp-action@v1
+        with:
+          host: ${{ secrets.HOST_ADDRESS }}
+          username: ${{ secrets.HOST_USER }}
+          key: ${{ secrets.HOST_SSH_KEY }}
+          source: finitum-web.tgz
+          target: /home/${{ secrets.HOST_USER }}/
+
       - name: Deploy to VPS
         uses: appleboy/ssh-action@v1
         env:
           IMAGE_TAG: ${{ needs.build-push.outputs.sha_tag }}
+          DEPLOY_WEB: ${{ needs.build-web.result == 'success' }}
         with:
           host: ${{ secrets.HOST_ADDRESS }}
           username: ${{ secrets.HOST_USER }}
           key: ${{ secrets.HOST_SSH_KEY }}
           # appleboy/ssh-action does not forward the runner env by default;
           # pass what the remote script needs explicitly.
-          envs: IMAGE_TAG
+          envs: IMAGE_TAG,DEPLOY_WEB
           # All deploy details (paths, users, compose invocation) live in a
           # root-owned script on the server; the SSH user's sudoers is limited
           # to exactly that script. Nothing sensitive appears in this file.
           script: |
             set -euo pipefail
             sudo /usr/local/sbin/finitum-deploy "$IMAGE_TAG"
+            if [ "$DEPLOY_WEB" = "true" ]; then
+              sudo /usr/local/sbin/finitum-deploy --web
+            fi

@@ -8,13 +8,17 @@ Every push to `main` runs [.github/workflows/ci.yml](../.github/workflows/ci.yml
 
 1. **lint-test** -- `ruff check` + `pytest` (also runs on pull requests, as a gate).
 2. **build-push** -- builds a locked image (`uv.lock` + `uv sync --frozen`) and pushes `ghcr.io/richardhapb/finitum-api` tagged `latest` and `sha-<sha>`. The immutable sha tag is what deploys.
-3. **deploy** -- SSHes into the VPS as a low-privilege deploy user and runs a single command:
+3. **build-web** -- runs only when `web/**` (or the workflow itself) changed: builds the static frontend with Bun (`VITE_API_URL` from the `WEB_API_URL` repo variable -- public by nature, it's baked into the shipped bundle) and uploads it as a tarball artifact.
+4. **deploy** -- SSHes into the VPS as a low-privilege deploy user. If there's a web build, it is first scp'd (no sudo) to a fixed path in the deploy user's home. Then:
 
    ```bash
    sudo /usr/local/sbin/finitum-deploy "$IMAGE_TAG"
+   sudo /usr/local/sbin/finitum-deploy --web   # only when the frontend changed
    ```
 
 All environment-specific detail (paths, users, the compose invocation) lives in the root-owned `finitum-deploy` script on the server -- the public workflow file contains no infrastructure information. The script validates the image tag, does `git pull --ff-only` as the app user (only compose/config files come from git; app code lives in the image), then `docker compose pull` + `up -d` with `IMAGE_TAG` exported, and prunes only this repo's images. Prod uses `volumes: !reset []` so no host source is mounted -- the server runs exactly what CI built.
+
+The `--web` mode publishes the frontend: it reads the tarball only from its fixed expected path (arguments never carry paths across the sudo boundary), refuses archives without an `index.html`, stages next to the web root, and swaps directories atomically, keeping the previous build as an instant-rollback backup.
 
 ## Security model
 
