@@ -1,0 +1,44 @@
+name: Bug report
+description: Something isn't working
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. ...
+        2. ...
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Email ingestion / forwarding
+        - Bank parser (wrong amount, merchant, category...)
+        - Web app / dashboard
+        - Authentication
+        - Self-hosting / Docker
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: env
+    attributes:
+      label: Environment
+      description: Self-hosted or finitum.app? If self-hosted, how are you running it? Include relevant logs (redact secrets).
+  - type: markdown
+    attributes:
+      value: |
+        If a bank email was parsed wrongly, please include a **sanitized** copy of the email
+        (replace names, account numbers, and card digits with fake values of the same shape).
+        Never post real personal or financial data.
