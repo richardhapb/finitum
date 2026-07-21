@@ -1,7 +1,7 @@
 # Production overrides - use with: docker compose -f docker-compose.yml -f docker-compose.prod.yml up
 services:
     api:
-        image: ghcr.io/richardhapb/finitum-api:latest
+        image: ghcr.io/richardhapb/finitum-api:${IMAGE_TAG:-latest}
         command: granian --interface asgi --workers ${API_WORKERS:-2} --host 0.0.0.0 --port 9090 api.server:app --access-log
         ports: ["127.0.0.1:9090:9090"]
         env_file: .env.prod
@@ -12,17 +12,17 @@ services:
         volumes: !reset []
 
     worker:
-        image: ghcr.io/richardhapb/finitum-api:latest
+        image: ghcr.io/richardhapb/finitum-api:${IMAGE_TAG:-latest}
         command: celery -A tasks.app:celery worker --loglevel=INFO --concurrency=${CELERY_CONCURRENCY:-2}
         env_file: .env.prod
         volumes: !reset []
 
     beat:
-        image: ghcr.io/richardhapb/finitum-api:latest
+        image: ghcr.io/richardhapb/finitum-api:${IMAGE_TAG:-latest}
         env_file: .env.prod
         volumes: !reset []
 
     alembic:
         env_file: .env.prod
-        image: ghcr.io/richardhapb/finitum-api:latest
+        image: ghcr.io/richardhapb/finitum-api:${IMAGE_TAG:-latest}
         volumes: !reset []

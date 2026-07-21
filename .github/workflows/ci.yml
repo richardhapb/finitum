@@ -6,16 +6,17 @@ on:
       - main
   pull_request:
 
-# A newer push to main supersedes an in-flight build/deploy.
-concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
-
 permissions:
   contents: read
 
 env:
   IMAGE: ghcr.io/richardhapb/finitum-api
+
+# Lint/build for the same ref supersede each other. Deploy is handled by a
+# SEPARATE, non-cancelable group below so a push never kills a deploy mid-`up -d`.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   lint-test:
@@ -47,6 +48,9 @@ jobs:
     permissions:
       contents: read
       packages: write
+    outputs:
+      # Immutable tag consumed by deploy. Single source of truth for what shipped.
+      sha_tag: sha-${{ github.sha }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
@@ -68,7 +72,7 @@ jobs:
           images: ${{ env.IMAGE }}
           tags: |
             type=raw,value=latest
-            type=sha,prefix=sha-,format=short
+            type=sha,prefix=sha-,format=long
 
       - name: Build and push
         uses: docker/build-push-action@v6
@@ -84,17 +88,26 @@ jobs:
     needs: build-push
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    # Deploys serialize but NEVER cancel each other — half a `docker compose up`
+    # is worse than a queued deploy.
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
     steps:
-      - name: Deploy to EC2
+      - name: Deploy to VPS
         uses: appleboy/ssh-action@v1
+        env:
+          IMAGE_TAG: ${{ needs.build-push.outputs.sha_tag }}
         with:
           host: ${{ secrets.HOST_ADDRESS }}
           username: ${{ secrets.HOST_USER }}
           key: ${{ secrets.HOST_SSH_KEY }}
+          # appleboy/ssh-action does not forward the runner env by default;
+          # pass what the remote script needs explicitly.
+          envs: IMAGE_TAG
+          # All deploy details (paths, users, compose invocation) live in a
+          # root-owned script on the server; the SSH user's sudoers is limited
+          # to exactly that script. Nothing sensitive appears in this file.
           script: |
             set -euo pipefail
-            cd ~/finitum
-            git pull --ff-only
-            docker compose -f docker-compose.yml -f docker-compose.prod.yml pull
-            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
-            docker image prune -f
+            sudo /usr/local/sbin/finitum-deploy "$IMAGE_TAG"
