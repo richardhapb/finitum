@@ -1,362 +1,116 @@
-# Finitum – Personal Finance Manager
+# Finitum
 
-Finitum is a modern, extensible personal finance manager that automatically parses your bank and email notifications to track expenses, transfers, and financial activity. It features a web dashboard, category detection, and secure OAuth integration with Google.
+**Turn your bank's notification emails into structured financial data -- automatically.**
 
----
+Finitum is an open-source personal finance tracker. Instead of scraping your bank or asking for your credentials, it uses the emails your bank already sends you: you set up a one-time forwarding rule, and every purchase, withdrawal, and transfer notification is parsed into a transaction (amount, merchant, date, category) and shown on your dashboard.
 
-## Features
+- **No inbox access.** Finitum never reads your email account. You forward only the bank notifications you choose; Google sign-in is optional and used for login only.
+- **Community bank parsers.** Every bank's email format is described in a single JSON file -- no engine code needed. Adding your bank is a JSON block plus a couple of test fixtures. See [Adding a bank](docs/adding-a-bank.md).
+- **Self-hostable.** One `docker compose up` runs the whole stack. A hosted instance lives at [finitum.app](https://finitum.app).
+- **Privacy first.** Raw email content is processed in real time and never stored -- only the extracted transaction data.
 
-- **Automatic Email Parsing**: Connect your Gmail account and Finitum will extract expenses and transfers from bank notifications.
-- **Category Detection**: Uses robust keyword matching and normalization to classify transactions into categories (Food, Transport, Online, etc.).
-- **Dashboard**: Interactive Dash/Plotly dashboard for visualizing spending trends, top merchants, category breakdowns, and more.
-- **User Authentication**: Secure signup/signin with JWT-based authentication.
-- **Google OAuth2 Integration**: Securely authorize Gmail access using OAuth2.
-- **Celery Task Queue**: Asynchronous background tasks for fetching and parsing emails.
-- **PostgreSQL Database**: Stores users, transactions, and credentials securely.
-- **Extensible**: Modular parser and category system for easy adaptation to new banks or notification formats.
+License: [MIT](LICENSE).
 
----
+## How it works
 
-## Quickstart (Docker Compose)
-
-**The recommended way to run Finitum is via Docker Compose.**
-No local Python or database setup required.
-
-### 1. Requirements
-
-- [Docker](https://docs.docker.com/get-docker/)
-- [Docker Compose](https://docs.docker.com/compose/)
-
-### 2. Environment Variables
-
-Copy `.env.example` to `.env` and fill in the required values:
-
-```env
-CONN_STR=postgresql+psycopg://finitum:yourpassword@db:5432/finitum
-PGUSER=finitum
-PGPASSWORD=yourpassword
-PGDATABASE=finitum
-REDIS_URL=redis://redis:6379/0
-GOOGLE_CLIENT=your-google-client-id
-GOOGLE_SECRET=your-google-client-secret
-GOOGLE_REDIRECT_URI=http://localhost:9090/google_oauth2callback
-SECRET_KEY=your-jwt-secret
-TZ=America/Santiago
-DEBUG=true
+```
+Your bank ──notification──▶ Your inbox ──forwarding rule──▶ u-<token>@your-domain
+                                                                    │
+                                                       Cloudflare Email Routing worker
+                                                                    │ (HMAC-signed POST)
+                                                                    ▼
+                                                          Finitum API /ingest/email
+                                                                    │
+                                                        bank parser (regex.json)
+                                                                    │
+                                                                    ▼
+                                                  transaction ──▶ dashboard 📊
 ```
 
-- You must create Google OAuth credentials for Gmail API access:
-  [Google Cloud Console – Credentials](https://console.cloud.google.com/apis/credentials)
+1. Each user gets a unique ingest address (`u-<token>@<your-ingest-domain>`).
+2. In Gmail (or any provider), you add that address as a forwarding target and create a filter for your bank's sender addresses. Finitum even captures Gmail's forwarding-confirmation email automatically so setup is one click.
+3. Incoming mail is relayed by a small [Cloudflare Email Routing worker](infra/email-worker/) to the API, verified with an HMAC signature, deduplicated, parsed, and saved.
 
-### 3. Build and Start All Services
+## Supported banks
+
+| Bank | Country | Parser id |
+|------|---------|-----------|
+| Banco de Chile | 🇨🇱 Chile | `banco_chile` |
+| Santander | 🇨🇱 Chile | `santander` |
+
+Your bank not here? **You can add it without writing engine code** -- parsers are data-driven regex definitions with fixture-based tests. Follow [docs/adding-a-bank.md](docs/adding-a-bank.md) and open a PR, or open an [Add a bank](https://github.com/richardhapb/finitum/issues/new?template=add-a-bank.yml) issue with sanitized samples.
+
+## Quickstart (self-host)
+
+Requirements: [Docker + Docker Compose](https://docs.docker.com/get-docker/).
 
 ```bash
+git clone https://github.com/richardhapb/finitum.git
+cd finitum
+cp .env.example .env   # fill in the values
 docker compose up --build
 ```
 
-This will start:
+This starts the FastAPI server (port 9090), the web app, PostgreSQL, Redis, and background workers; database migrations run automatically on first start.
 
-- **API server** (FastAPI, port 9090)
-- **Dashboard** (Dash/Plotly, port 5050)
-- **Celery worker** (background email parsing)
-- **Celery beat** (periodic tasks)
-- **PostgreSQL** (database, port 5444)
-- **Redis** (cache, port 6379)
-- **Alembic** (runs DB migrations on first up)
+- **App / API**: http://localhost:9090 (interactive API docs at `/docs`)
 
-### 4. Access the App
+Key environment variables (see `.env.example` for the full list):
 
-- **Web Dashboard & API**: [http://localhost:9090](http://localhost:9090)
-- **API Docs**: [http://localhost:9090/docs](http://localhost:9090/docs)
+| Variable | Purpose |
+|----------|---------|
+| `CONN_STR`, `PGUSER`, `PGPASSWORD`, `PGDATABASE` | PostgreSQL connection |
+| `REDIS_URL` | Redis (dedupe, forwarding-confirmation capture) |
+| `SECRET_KEY` | JWT signing secret |
+| `INGEST_WEBHOOK_SECRET` | Shared secret between the email worker and the API |
+| `INGEST_DOMAIN` | Domain of the per-user ingest addresses |
+| `GOOGLE_CLIENT`, `GOOGLE_SECRET`, `GOOGLE_REDIRECT_URI` | Optional -- Google sign-in (login only, no Gmail scopes) |
+| `TZ` | Timezone for parsed email dates |
 
----
+To receive real emails you also deploy the email worker on your own domain -- see [infra/email-worker/](infra/email-worker/) for a 5-minute setup with Cloudflare Email Routing.
 
-## Usage
+## Adding your bank in 3 steps
 
-1. **Sign Up**: Register a user via `/signup` endpoint or UI.
-2. **Google OAuth**: Visit `/google-authorize` to link your Gmail account.
-3. **Fetch Emails**: Celery tasks will periodically fetch and parse new emails.
-4. **Dashboard**: Open the dashboard at [http://localhost:5050](http://localhost:5050) to view your financial analytics.
+1. **Describe the emails**: add a block for your bank to [`src/parsers/regex.json`](src/parsers/regex.json) -- sender addresses, subject patterns per transaction type, and body regexes that capture amount, merchant, and date.
+2. **Add fixtures**: drop sanitized sample email bodies/subjects into `tests/banks/<your_bank>/`.
+3. **Add a test case**: extend the parametrized cases in [`tests/test_parse.py`](tests/test_parse.py) and run `pytest tests/test_parse.py -v`.
 
----
+That's it -- the API and the web UI pick up new banks automatically from `regex.json`. The full guide, including regex tips, encoding pitfalls, and a CLI for testing against a raw email file, is in [docs/adding-a-bank.md](docs/adding-a-bank.md).
 
-## Deployment (CI/CD)
-
-Every push to `main` runs `.github/workflows/ci.yml`:
-
-1. **lint-test** — `ruff check` + `pytest` (also runs on pull requests, as a gate).
-2. **build-push** — builds a locked image (`uv.lock` + `uv sync --frozen`) and
-   pushes `ghcr.io/richardhapb/finitum-api` tagged `latest` and `sha-<short>`.
-3. **deploy** — SSHes into the EC2 host and runs:
-
-   ```bash
-   cd ~/finitum
-   git pull --ff-only
-   docker compose -f docker-compose.yml -f docker-compose.prod.yml pull
-   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
-   docker image prune -f
-   ```
-
-The image is self-contained (code + deps + alembic migrations baked in); `git
-pull` on the server only refreshes the compose/env files. Prod uses
-`volumes: !reset []` so no host source is mounted — the server runs exactly what
-CI built.
-
-### One-time setup
-
-- **Make the package public**: GitHub → Packages → `finitum-api` → Package
-  settings → Change visibility → **Public**. The server then pulls with no auth.
-- **Add repository secrets** (Settings → Secrets and variables → Actions):
-  `EC2_HOST`, `EC2_USER` (e.g. `ubuntu`), and `EC2_SSH_KEY` (a private key whose
-  public half is in the box's `~/.ssh/authorized_keys`).
-- **On the server**: clone the repo to `~/finitum` on `main`, populate
-  `.env.prod` (including `CREDENTIALS_ENCRYPTION_KEY` — back it up, losing it
-  makes stored Google tokens unrecoverable), and confirm
-  `docker compose version` ≥ 2.24 (required for `!reset`).
-
----
-
-## Project Structure
+## Project structure
 
 ```
 src/
-  api/              # FastAPI server, JWT auth, endpoints
-  db/               # SQLModel models, DB service
-  email_service/    # Gmail API integration, message parsing
-  oauth_service/    # Google OAuth2 logic
-  parsers/          # Expense/transference parsing, category logic
-  tasks/            # Celery tasks for background processing
-  ui/               # Dash/Plotly dashboard
+  api/              # FastAPI server, JWT auth, ingest webhook, endpoints
+  db/               # SQLModel models, DB services
+  email_service/    # Inbound email processing (MIME parsing, ingest pipeline)
+  oauth_service/    # Google sign-in (login only)
+  parsers/          # Bank parsers engine + regex.json definitions
   utils/            # Config, logging, helpers
+web/                # React Router v7 + Tailwind frontend
+infra/email-worker/ # Cloudflare Email Routing worker (forwarding relay)
 alembic/            # Database migrations
-tests/              # Unit and integration tests
+tests/              # Test suite + sample bank emails (tests/banks/)
+docs/               # Contributor and operator documentation
 ```
 
----
+## Roadmap
 
-## Extending Finitum
+- **Outbound webhooks**: subscribe to events (`transaction.created`, transfers, ...) and trigger your own automations.
+- **Internationalization**: English-canonical labels with per-locale overrides; per-user timezone and currency handling.
+- **Multi-bank per user** with sender-based parser dispatch.
 
-### Adding Support for a New Bank
+See [plans/](plans/) for the detailed phase documents.
 
-Finitum uses regex patterns to parse bank notification emails. Each bank has its own patterns defined in `src/parsers/regex.json`.
+## Contributing
 
-#### 1. Collect Sample Emails
+Contributions are very welcome -- bank parsers most of all. Start with [CONTRIBUTING.md](CONTRIBUTING.md). Please also read the [Code of Conduct](CODE_OF_CONDUCT.md). Security issues: see [SECURITY.md](SECURITY.md).
 
-Get raw email samples from your bank for:
-- Purchase notifications
-- ATM withdrawals
-- Transfer notifications
-
-Use "Show Original" in Gmail to get the actual email source, including encoding artifacts. Clean the text—the parser needs to handle the clean format.
-
-Use this function to clean the html from email text.
-
-```python
-from bs4 import BeautifulSoup
-def remove_html_tags(html_doc: str) -> str:
-    soup = BeautifulSoup(html_doc, "html.parser")
-    return soup.get_text()
-```
-
-
-#### 2. Create Test Files
-
-Create a directory under `tests/banks/` for your bank:
-
-```bash
-mkdir -p tests/banks/your_bank_name
-```
-
-Add test files for each transaction type:
-- `purchase_clp.txt` - Purchase notification body
-- `purchase_subject.txt` - Purchase email subject
-- `withdrawal.txt` - ATM withdrawal body
-- `withdrawal_subject.txt` - ATM withdrawal subject
-- `transference.txt` - Transfer notification body
-- `transference_subject.txt` - Transfer email subject
-
-#### 3. Write Regex Patterns
-
-Add your bank's patterns to `src/parsers/regex.json`:
-
-```json
-{
-  "your_bank_name": {
-    "subject": {
-      "exclusions": ["internal transfer", "between accounts"],
-      "purchase": "purchase confirmation",
-      "withdrawal": "atm withdrawal",
-      "transference": "transfer notification"
-    },
-    "body": {
-      "amountPurchase": "Amount\\s+\\$([\\d.,]+)",
-      "amountTransference": "Transfer\\s+amount\\s+\\$([\\d.,]+)",
-      "amountWithdrawal": "Withdrawal\\s+\\$([\\d.,]+)",
-      "date": "\\d{1,2}[-/]\\d{1,2}[-/]\\d{4}",
-      "commerce": "Merchant:\\s+(.+?)\\s+Date",
-      "transferenceRecipient": "Recipient:\\s+(.+?)\\s+Account"
-    }
-  }
-}
-```
-
-**Pattern Guidelines**:
-- **Subject patterns**: Lowercase text fragments to match in email subjects
-- **Exclusions**: Subject patterns to ignore (e.g., internal transfers)
-- **Body patterns**: Regex to capture specific fields from email body
-- Use `\\s+` for flexible whitespace matching
-- Capture groups `(...)` extract the actual value
-- Handle encoded characters if present (e.g., `=C3=B1` for `ñ`)
-- Account for separators like `>`, tabs (`=09`), or HTML artifacts
-
-**Common Pitfalls**:
-- Emails often have quoted-printable encoding (`=C3=A9` for accented chars)
-- HTML emails get stripped but may have odd spacing artifacts
-- Line breaks might be `> ` or `\n` depending on email format
-- Currency amounts may use `.` or `,` as thousands separators
-
-#### 4. Write Tests
-
-Add parametrized test cases in `tests/test_parse.py`:
-
-```python
-@pytest.mark.parametrize(
-    ("bank", "amount", "commerce", "cat"),
-    [
-        ("banco_chile", 38844, "STA ISABEL JM CAR", ExpenseCategory.FOOD),
-        ("santander", 68885, "Entel pcs", ExpenseCategory.SERVICES),
-        ("your_bank_name", 15000, "COFFEE SHOP", ExpenseCategory.FOOD),
-    ],
-)
-def test_amount_data_clp(bank, amount, commerce, cat):
-    # Test implementation
-    ...
-```
-
-#### 5. Run Tests
-
-```bash
-pytest tests/test_parse.py -v
-```
-
-Fix regex patterns until all tests pass. Common issues:
-- **Commerce not captured**: Adjust the pattern to match the exact structure
-- **Amount wrong format**: Handle thousands separators (`.` vs `,`)
-- **Date format mismatch**: Update date regex for DD/MM/YYYY vs DD-MM-YYYY
-- **Recipient name issues**: Account for ALL CAPS vs Mixed Case
-
-#### 6. Debug Failed Matches
-
-If regex doesn't match, dump the actual string being parsed:
-
-```python
-with open(f"tests/banks/{bank}/purchase_clp.txt", "r") as f:
-    content = f.read()
-    print(repr(content))  # Shows exact bytes, whitespace, encoding
-```
-
-Compare the `repr()` output against your regex pattern character by character.
-
-### Adding New Transaction Categories
-
-Categories are defined in `src/parsers/categories.json` and mapped in `src/parsers/base.py`.
-
-#### 1. Edit Category Keywords
-
-Add or modify categories in `src/parsers/categories.json`:
-
-```json
-{
-  "food": ["grocery", "restaurant", "cafe", "market"],
-  "transport": ["uber", "taxi", "metro", "gas station"],
-  "your_new_category": ["keyword1", "keyword2", "keyword3"]
-}
-```
-
-#### 2. Update ExpenseCategory Enum
-
-Add your category to `src/parsers/base.py`:
-
-```python
-class ExpenseCategory(str, Enum):
-    FOOD = "food"
-    TRANSPORT = "transport"
-    YOUR_NEW_CATEGORY = "your_new_category"
-```
-
-#### 3. Test Category Detection
-
-Categories are detected by matching merchant names against keywords. Test with:
-
-```python
-from parsers.expense import Expense
-
-expense = Expense("100", "COFFEE SHOP", datetime.now())
-assert expense.category == ExpenseCategory.FOOD
-```
-
-### Debugging Email Parsing Issues
-
-Common problems and solutions:
-
-**Emails not being fetched**:
-- Check Celery logs: `docker compose logs celery_worker`
-- Verify Gmail API scope includes read access
-- Check Google OAuth token hasn't expired
-
-**Regex not matching**:
-- Email body might have HTML artifacts—check `remove_html_tags()` function
-- Use `repr()` to see exact string format including hidden characters
-- Test regex patterns at [regex101.com](https://regex101.com)
-
-**Wrong amounts extracted**:
-- Check for multiple amounts in email (bill amount vs. paid amount)
-- Verify thousands separator handling (`.` vs `,`)
-- Some banks show amounts in multiple places—ensure you're capturing the right one
-
-**Categories wrong**:
-- Add more specific keywords to `categories.json`
-- Keywords are matched case-insensitive and after normalization
-- Check keyword priority—more specific terms should come first
-
-### Development Workflow
-
-1. **Get raw email sample** (Show Original in Gmail)
-2. **Create test files** with exact email content
-3. **Write regex patterns** in `regex.json`
-4. **Run tests** and iterate on patterns
-5. **Debug with `repr()`** to see exact format
-6. **Validate in production** with small date range first
-
-### Performance Considerations
-
-- Celery tasks fetch emails in batches (configurable in `tasks/email.py`)
-- Rate limits apply to Gmail API (quota: 1 billion requests/day)
-- Database queries are optimized with proper indexes
-- Dashboard caches data for 5 minutes to reduce DB load
-
----
-
-## Security
-
-- No email content is saved—only extracted transaction data
-- All sensitive tokens and credentials are stored securely in the database
-- OAuth2 state is managed with Redis for CSRF protection
-- Passwords are hashed using strong algorithms
-- JWT tokens are used for authentication
-
----
-
-## License
-
-MIT License
-
----
+Deployment/CI notes for operators of the reference instance are in [docs/deployment.md](docs/deployment.md).
 
 ## Acknowledgements
 
-- [Dash](https://plotly.com/dash/)
 - [FastAPI](https://fastapi.tiangolo.com/)
 - [SQLModel](https://sqlmodel.tiangolo.com/)
-- [Celery](https://docs.celeryq.dev/)
-- [Google API Python Client](https://github.com/googleapis/google-api-python-client)
+- [React Router](https://reactrouter.com/)
+- [Cloudflare Email Routing](https://developers.cloudflare.com/email-routing/)
