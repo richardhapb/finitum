@@ -53,8 +53,6 @@ from tasks.email_fetch import get_user_messages
 from utils.config import (
     ACCESS_TOKEN_KEY,
     DEBUG,
-    EMAIL_SCAN_ALLOWED_EMAILS,
-    EMAIL_SCAN_VERIFICATION_MODE,
     GMAIL_POLLING_ENABLED,
     INGEST_DOMAIN,
     INGEST_WEBHOOK_SECRET,
@@ -112,15 +110,6 @@ app.add_middleware(
 
 
 redis_client = redis.Redis(host=REDIS_HOST, port=REDIS_PORT)
-
-
-def can_use_verification_scan(user: User) -> bool:
-    """Restrict manual scan controls to verification mode (and optional allowlist)."""
-    if not EMAIL_SCAN_VERIFICATION_MODE:
-        return False
-    if not EMAIL_SCAN_ALLOWED_EMAILS:
-        return True
-    return user.email.lower() in EMAIL_SCAN_ALLOWED_EMAILS
 
 
 def serialize_category(category: Category, patterns: list[str] | None = None) -> CategoryRead:
@@ -183,7 +172,6 @@ def serialize_user_info(user: User) -> dict[str, object]:
         "ingest_address": ingest_address,
         "forwarding_active": last_email_at is not None,
         "last_email_received_at": last_email_at,
-        "verification_scan_enabled": can_use_verification_scan(user),
     }
 
 
@@ -543,35 +531,6 @@ def delete_transference(
     session.delete(transference)
     session.commit()
     return JSONResponse(content={"msg": "OK"})
-
-
-@app.post("/email/scan", status_code=status.HTTP_202_ACCEPTED)
-def trigger_manual_email_scan(current_user: User = Depends(get_current_user)) -> JSONResponse:
-    """
-    Queue an email scan manually for OAuth verification.
-    Enabled only when EMAIL_SCAN_VERIFICATION_MODE=true.
-    """
-    if not can_use_verification_scan(current_user):
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
-
-    creds = current_user.google_credentials
-    gmail_scope = "https://www.googleapis.com/auth/gmail.readonly"
-
-    if not creds or not creds.is_valid:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Google credentials missing or invalid")
-
-    if gmail_scope not in creds.granted_scopes():
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Gmail read-only scope not granted")
-
-    try:
-        task = get_user_messages.delay(current_user.id)
-    except Exception as e:
-        logger.exception("Unable to queue manual scan for user %s", current_user.username)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to queue email scan"
-        ) from e
-
-    return JSONResponse(content={"msg": "Email scan queued", "task_id": task.id})
 
 
 @app.get("/google-authorize")

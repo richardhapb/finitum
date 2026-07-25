@@ -7,11 +7,8 @@ export interface User {
   last_update: string;
   has_google_credentials?: boolean;
   is_google_credentials_valid?: boolean;
-  // Forwarding ingestion status (replaces has_gmail_scope).
-  ingest_address?: string | null;
   forwarding_active?: boolean;
   last_email_received_at?: string | null;
-  verification_scan_enabled?: boolean;
 }
 
 export interface IngestAddress {

@@ -3,7 +3,6 @@ import type {
   Category,
   CreateCategoryRequest,
   CreateExpenseRequest,
-  EmailScanResponse,
   Expense,
   GenericResponse,
   IngestAddress,
@@ -125,14 +124,6 @@ export const categoriesApi = {
 
   create: async (payload: CreateCategoryRequest): Promise<Category> => {
     const response = await api.post<Category>("/categories", payload);
-    return response.data;
-  },
-};
-
-// Email API
-export const emailApi = {
-  triggerScan: async (): Promise<EmailScanResponse> => {
-    const response = await api.post<EmailScanResponse>("/email/scan");
     return response.data;
   },
 };

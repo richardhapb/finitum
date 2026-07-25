@@ -9,15 +9,6 @@ REFRESH_TOKEN_KEY = os.getenv("REFRESH_TOKEN_KEY", "refresh_token")
 ACCESS_TOKEN_KEY = os.getenv("ACCESS_TOKEN_KEY", "access_token")
 SECRET_KEY = os.getenv("SECRET_KEY", "insecure-secret")
 CREDENTIALS_ENCRYPTION_KEY = os.getenv("CREDENTIALS_ENCRYPTION_KEY", "")
-EMAIL_SCAN_VERIFICATION_MODE = os.getenv("EMAIL_SCAN_VERIFICATION_MODE", "false") == "true"
-EMAIL_SCAN_ALLOWED_EMAILS = {
-    email.strip().lower() for email in os.getenv("EMAIL_SCAN_ALLOWED_EMAILS", "").split(",") if email.strip()
-}
-EMAIL_SCAN_VERIFICATION_REMITENTS = {
-    remitent.strip().lower()
-    for remitent in os.getenv("EMAIL_SCAN_VERIFICATION_REMITENTS", "").split(",")
-    if remitent.strip()
-}
 WEB_ADDRESS = os.getenv("WEB_ADDRESS", "http://localhost:5173")
 APP_NAME = "finitum"
 TZ = pytz.timezone("America/Santiago")
