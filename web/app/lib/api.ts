@@ -3,11 +3,14 @@ import type {
   Category,
   CreateCategoryRequest,
   CreateExpenseRequest,
+  DeleteCategoryResponse,
   Expense,
   GenericResponse,
   IngestAddress,
   IngestConfirmationResponse,
+  RecategorizeResponse,
   Transference,
+  UpdateCategoryRequest,
   User,
   UserLoginResponse,
   UserUpdate,
@@ -124,6 +127,28 @@ export const categoriesApi = {
 
   create: async (payload: CreateCategoryRequest): Promise<Category> => {
     const response = await api.post<Category>("/categories", payload);
+    return response.data;
+  },
+
+  update: async (id: number, payload: UpdateCategoryRequest): Promise<Category> => {
+    const response = await api.patch<Category>(`/categories/${id}`, payload);
+    return response.data;
+  },
+
+  /** Restore a built-in category to its default name and keywords. */
+  reset: async (id: number): Promise<Category> => {
+    const response = await api.post<Category>(`/categories/${id}/reset`);
+    return response.data;
+  },
+
+  remove: async (id: number): Promise<DeleteCategoryResponse> => {
+    const response = await api.delete<DeleteCategoryResponse>(`/categories/${id}`);
+    return response.data;
+  },
+
+  /** Re-apply the current keywords to already stored transactions. */
+  recategorize: async (): Promise<RecategorizeResponse> => {
+    const response = await api.post<RecategorizeResponse>("/categories/recategorize");
     return response.data;
   },
 };

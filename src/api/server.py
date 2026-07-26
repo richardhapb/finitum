@@ -1,6 +1,6 @@
 import json
 import os
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Mapping
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, cast
@@ -21,16 +21,23 @@ from starlette.middleware.cors import CORSMiddleware
 
 from api.jwt import Token, get_current_user, set_access_cookie, set_refresh_cookie
 from db.categories import (
+    CategoryNotFoundError,
+    CategoryView,
     create_custom_category,
-    get_category_patterns,
-    get_global_category_by_slug,
+    delete_custom_category,
+    get_category_name_overrides,
+    get_category_view,
     get_visible_category,
-    list_categories_for_user,
+    list_category_views,
+    recategorize_transactions,
+    reset_builtin_category,
+    update_category,
 )
 from db.models import (
     Category,
     CategoryCreate,
     CategoryRead,
+    CategoryUpdate,
     Expense as DBExpense,
     ExpenseRead,
     Transference as DBTransference,
@@ -112,19 +119,29 @@ app.add_middleware(
 redis_client = redis.Redis(host=REDIS_HOST, port=REDIS_PORT)
 
 
-def serialize_category(category: Category, patterns: list[str] | None = None) -> CategoryRead:
+def serialize_category(view: CategoryView) -> CategoryRead:
     return CategoryRead(
-        id=category.id,
-        slug=category.slug,
-        name=category.name_es,
-        name_en=category.name_en,
-        name_es=category.name_es,
-        is_custom=category.user_id is not None,
-        patterns=patterns or [],
+        id=view.id,
+        slug=view.slug,
+        name=view.name,
+        name_en=view.name_en,
+        name_es=view.name_es,
+        is_custom=view.is_custom,
+        is_modified=view.is_modified,
+        patterns=view.patterns,
     )
 
 
-def serialize_expense(expense: DBExpense, category: Category) -> ExpenseRead:
+def category_display_name(category: Category, name_overrides: Mapping[int, str] | None = None) -> str:
+    """The category name as the current user renamed it, if they did."""
+    if name_overrides and category.id is not None:
+        return name_overrides.get(category.id, category.name_es)
+    return category.name_es
+
+
+def serialize_expense(
+    expense: DBExpense, category: Category, name_overrides: Mapping[int, str] | None = None
+) -> ExpenseRead:
     return ExpenseRead(
         id=expense.id,
         user_id=expense.user_id,
@@ -133,23 +150,27 @@ def serialize_expense(expense: DBExpense, category: Category) -> ExpenseRead:
         currency=expense.currency,
         category_id=expense.category_id,
         category_slug=category.slug,
-        category_name=category.name_es,
+        category_name=category_display_name(category, name_overrides),
         category_is_custom=category.user_id is not None,
         date=expense.date,
         description=expense.description,
     )
 
 
-def serialize_transference(transference: DBTransference, category: Category) -> TransferenceRead:
+def serialize_transference(
+    transference: DBTransference, category: Category, name_overrides: Mapping[int, str] | None = None
+) -> TransferenceRead:
     return TransferenceRead(
         id=transference.id,
         user_id=transference.user_id,
         recipient=transference.recipient,
         amount=transference.amount,
         currency=transference.currency,
-        category=transference.category,
+        category=category.slug,
+        category_id=transference.category_id,
         category_slug=category.slug,
-        category_name=category.name_es,
+        category_name=category_display_name(category, name_overrides),
+        category_is_custom=category.user_id is not None,
         date=transference.date,
         description=transference.description,
     )
@@ -408,13 +429,8 @@ def get_categories(
     current_user: User = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> list[CategoryRead]:
-    categories = list_categories_for_user(session, require_user_id(current_user))
-    category_ids = [category.id for category in categories if category.id is not None]
-    patterns_by_category_id = get_category_patterns(session, category_ids)
-    return [
-        serialize_category(category, patterns_by_category_id.get(category.id or 0, []))
-        for category in categories
-    ]
+    views = list_category_views(session, require_user_id(current_user))
+    return [serialize_category(view) for view in views]
 
 
 @app.post("/categories", response_model=CategoryRead, status_code=status.HTTP_201_CREATED)
@@ -423,12 +439,88 @@ def create_category(
     current_user: User = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> CategoryRead:
+    user_id = require_user_id(current_user)
     try:
-        category = create_custom_category(session, require_user_id(current_user), category_data)
+        category = create_custom_category(session, user_id, category_data)
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
-    patterns_by_category_id = get_category_patterns(session, [category.id] if category.id is not None else [])
-    return serialize_category(category, patterns_by_category_id.get(category.id or 0, []))
+    return serialize_category(get_category_view(session, user_id, category))
+
+
+@app.post("/categories/recategorize")
+def recategorize_categories(
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+) -> JSONResponse:
+    """Re-apply the current keywords to already stored transactions.
+
+    Transactions that match no keyword keep their category, so manual choices
+    survive the backfill.
+    """
+    updated = recategorize_transactions(session, require_user_id(current_user))
+    return JSONResponse(
+        content={
+            "msg": "OK",
+            "expenses_updated": updated["expenses"],
+            "transferences_updated": updated["transferences"],
+        }
+    )
+
+
+@app.patch("/categories/{category_id}", response_model=CategoryRead)
+def patch_category(
+    category_id: int,
+    category_data: CategoryUpdate,
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+) -> CategoryRead:
+    """Rename a category and/or replace its keywords.
+
+    Builtin categories are shared, so edits are stored as a private override
+    for the current user only.
+    """
+    user_id = require_user_id(current_user)
+    try:
+        category = update_category(session, user_id, category_id, category_data)
+    except CategoryNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    return serialize_category(get_category_view(session, user_id, category))
+
+
+@app.post("/categories/{category_id}/reset", response_model=CategoryRead)
+def reset_category(
+    category_id: int,
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+) -> CategoryRead:
+    """Restore a builtin category to its default name and keywords."""
+    user_id = require_user_id(current_user)
+    try:
+        category = reset_builtin_category(session, user_id, category_id)
+    except CategoryNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    return serialize_category(get_category_view(session, user_id, category))
+
+
+@app.delete("/categories/{category_id}")
+def delete_category(
+    category_id: int,
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+) -> JSONResponse:
+    """Delete a custom category; its expenses fall back to the general one."""
+    user_id = require_user_id(current_user)
+    try:
+        reassigned = delete_custom_category(session, user_id, category_id)
+    except CategoryNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    return JSONResponse(content={"msg": "OK", "reassigned_expenses": reassigned})
 
 
 @app.get("/expenses", response_model=list[ExpenseRead])
@@ -448,7 +540,8 @@ def get_expenses(
         .limit(limit)
         .offset(offset)
     ).all()
-    return [serialize_expense(expense, category) for expense, category in expenses]
+    name_overrides = get_category_name_overrides(session, user_id)
+    return [serialize_expense(expense, category, name_overrides) for expense, category in expenses]
 
 
 @app.post("/expenses", response_model=ExpenseRead, status_code=status.HTTP_201_CREATED)
@@ -477,7 +570,7 @@ def create_expense(
     session.add(new_expense)
     session.commit()
     session.refresh(new_expense)
-    return serialize_expense(new_expense, category)
+    return serialize_expense(new_expense, category, get_category_name_overrides(session, user_id))
 
 
 @app.delete("/expenses/{id}")
@@ -504,17 +597,18 @@ def get_transferences(
     """Get transferences for the current user, most recent first."""
     user_id = require_user_id(current_user)
     transferences = session.exec(
-        select(DBTransference)
+        select(DBTransference, Category)
+        .join(Category, DBTransference.category_id == Category.id)
         .where(DBTransference.user_id == user_id)
         .order_by(DBTransference.date.desc())
         .limit(limit)
         .offset(offset)
     ).all()
-    result = []
-    for t in transferences:
-        category = get_global_category_by_slug(session, t.category.value)
-        result.append(serialize_transference(t, category))
-    return result
+    name_overrides = get_category_name_overrides(session, user_id)
+    return [
+        serialize_transference(transference, category, name_overrides)
+        for transference, category in transferences
+    ]
 
 
 @app.delete("/transferences/{id}")

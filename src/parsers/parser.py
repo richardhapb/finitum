@@ -233,7 +233,10 @@ def save_expense(
         transference = parser.get_transference(msg)
         if not transference:
             return None
-        db_transference = transference_to_db_model(transference)
+        category = resolve_category_for_user_text(
+            session, user_id, transference.recipient, transference.category.value
+        )
+        db_transference = transference_to_db_model(transference, category.id)
         db_transference.user_id = user_id
         session.add(db_transference)
         session.commit()

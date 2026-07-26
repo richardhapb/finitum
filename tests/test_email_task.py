@@ -403,12 +403,18 @@ class TestTransferenceMatchesIntegration:
             subject = f.read()
 
         msg = Message(transference_remitent, subject, time_obj, body)
-        mock_session = MagicMock()
+        engine = create_engine("sqlite://")
+        SQLModel.metadata.create_all(engine)
 
-        result = save_message(1, parser, msg, mock_session)
+        # Saving a transference now resolves its category against the user's
+        # catalog, so this needs a real session rather than a mock.
+        with Session(engine) as session:
+            user = create_user(session, "transfer-body-user", "transfer-body@example.com")
+            result = save_message(user.id, parser, msg, session)
+            saved_transferences = session.exec(select(DbTransference)).all()
 
-        assert result is True
-        mock_session.add.assert_called_once()
+            assert result is True
+            assert len(saved_transferences) == 1
 
     def test_transference_with_invalid_body_not_saved(self):
         """Test that transference with invalid body pattern is not saved."""
@@ -437,12 +443,16 @@ class TestTransferenceMatchesIntegration:
             subject = f.read()
 
         msg = Message("mensajeria@santander.cl", subject, time_obj, body)
-        mock_session = MagicMock()
+        engine = create_engine("sqlite://")
+        SQLModel.metadata.create_all(engine)
 
-        result = save_message(1, parser, msg, mock_session)
+        with Session(engine) as session:
+            user = create_user(session, "santander-transfer-user", "santander-transfer@example.com")
+            result = save_message(user.id, parser, msg, session)
+            saved_transferences = session.exec(select(DbTransference)).all()
 
-        assert result is True
-        mock_session.add.assert_called_once()
+            assert result is True
+            assert len(saved_transferences) == 1
 
 
 class TestUserBankIntegration:

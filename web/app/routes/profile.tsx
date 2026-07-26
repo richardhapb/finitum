@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Link } from "react-router";
 import { Navbar } from "../components/layout/Navbar";
 import { authApi, banksApi, ingestApi } from "../lib/api";
 
@@ -199,6 +200,25 @@ export default function ProfilePage() {
               </div>
             </div>
           )}
+        </div>
+
+        {/* Categories */}
+        <div className="bg-gray-800 rounded-lg p-6 mb-6">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-xl font-semibold text-white">Categories</h2>
+              <p className="text-gray-400 text-sm mt-1">
+                Edit the keywords that categorize your transactions, rename built-in categories
+                or add your own.
+              </p>
+            </div>
+            <Link
+              to="/categories"
+              className="shrink-0 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded transition-colors text-center"
+            >
+              Manage categories
+            </Link>
+          </div>
         </div>
 
         {/* Google Sign-in Status */}

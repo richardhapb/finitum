@@ -254,7 +254,7 @@ export function ExpenseForm() {
               {...register('description')}
               rows={3}
               placeholder="Notas adicionales..."
-              className="w-full px-3 py-2 bg-gray-700 border border-gray-600 text-white rounded focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-400"
+              className="w-full px-3 py-2 bg-gray-700 border border-gray-600 text-white rounded focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-400 min-h-20"
             />
           </div>
         </div>
