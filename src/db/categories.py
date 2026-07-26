@@ -413,6 +413,20 @@ def _apply_own_category_update(
         _replace_patterns(session, category, user_id, _clean_patterns(patterns))
 
 
+def _catalog_patterns(session: Session, category_id: int) -> list[str]:
+    rows = session.exec(
+        select(CategoryPattern).where(
+            CategoryPattern.category_id == category_id,
+            CategoryPattern.user_id.is_(None),
+        )
+    ).all()
+    return [row.pattern for row in rows]
+
+
+def _same_keyword_set(left: list[str], right: list[str]) -> bool:
+    return {value.casefold() for value in left} == {value.casefold() for value in right}
+
+
 def _apply_builtin_category_override(
     session: Session,
     category: Category,
@@ -432,9 +446,24 @@ def _apply_builtin_category_override(
     if name is not None:
         # Storing the builtin name back is the same as having no rename.
         override.name = None if name == category.name_es else name
+
     if patterns is not None:
-        override.patterns_overridden = True
-        _replace_patterns(session, category, user_id, _clean_patterns(patterns))
+        cleaned = _clean_patterns(patterns)
+        if _same_keyword_set(cleaned, _catalog_patterns(session, category.id)):
+            # Submitting the catalog keywords unchanged (a rename-only save, or
+            # an edit undone) must not fork: stay on the shared catalog so
+            # keywords added to the builtin later still reach this user.
+            override.patterns_overridden = False
+            _replace_patterns(session, category, user_id, [])
+        else:
+            override.patterns_overridden = True
+            _replace_patterns(session, category, user_id, cleaned)
+
+    if override.name is None and not override.patterns_overridden:
+        # Nothing left to override; drop the row so the category reads as unedited.
+        if override.id is not None:
+            session.delete(override)
+        return
 
     session.add(override)
 

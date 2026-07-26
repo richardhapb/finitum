@@ -126,6 +126,37 @@ def test_renaming_a_builtin_category_is_private_to_the_user(session):
     assert session.get(Category, housing.id).name_es == "Vivienda"
 
 
+def test_renaming_without_touching_keywords_does_not_fork_them(session):
+    """A rename-only save still posts the current keywords; that must not fork."""
+    owner = create_user(session, "owner", "owner@example.com")
+    housing = get_global_category_by_slug(session, "housing")
+    current_keywords = view_by_slug(session, owner.id, "housing").patterns
+
+    update_category(session, owner.id, housing.id, CategoryUpdate(name="Casa", patterns=current_keywords))
+    # A keyword added to the shared catalog later must still reach this user.
+    session.add(CategoryPattern(category_id=housing.id, pattern="GASTO COMUN"))
+    session.commit()
+
+    view = view_by_slug(session, owner.id, "housing")
+    assert view.name == "Casa"
+    assert "GASTO COMUN" in view.patterns
+    assert resolve_category_for_user_text(session, owner.id, "PAGO GASTO COMUN", "general").slug == "housing"
+
+
+def test_restoring_the_catalog_keywords_drops_the_fork(session):
+    owner = create_user(session, "owner", "owner@example.com")
+    housing = get_global_category_by_slug(session, "housing")
+    default_keywords = view_by_slug(session, owner.id, "housing").patterns
+
+    update_category(session, owner.id, housing.id, CategoryUpdate(patterns=["JUNTA DE VECINOS"]))
+    update_category(session, owner.id, housing.id, CategoryUpdate(patterns=default_keywords))
+
+    view = view_by_slug(session, owner.id, "housing")
+    assert view.is_modified is False
+    assert view.patterns == default_keywords
+    assert session.exec(select(CategoryPattern).where(CategoryPattern.user_id == owner.id)).all() == []
+
+
 def test_builtin_keywords_are_not_reseeded_into_a_forked_category(session):
     owner = create_user(session, "owner", "owner@example.com")
     food = get_global_category_by_slug(session, "food")
