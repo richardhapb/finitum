@@ -125,6 +125,8 @@ def downgrade() -> None:
         )
 
     with op.batch_alter_table("transferences") as batch_op:
+        # Every row was just backfilled, so the original NOT NULL can come back.
+        batch_op.alter_column("category", existing_type=_legacy_category_type(), nullable=False)
         batch_op.drop_index("ix_transferences_category_id")
         batch_op.drop_constraint("fk_transferences_category_id_categories", type_="foreignkey")
         batch_op.drop_column("category_id")
