@@ -9,7 +9,7 @@ from utils.logger import get_logger
 
 from pydantic import EmailStr, field_validator
 from sqlmodel import Field, Relationship, SQLModel, select, or_, Text, Column
-from parsers.base import Currency, ExpenseCategory
+from parsers.base import Currency
 
 from pwdlib import PasswordHash
 
@@ -115,7 +115,7 @@ class Transference(SQLModel, table=True):
     recipient: str = Field(index=True)
     amount: float = Field()
     currency: Currency = Field(default=Currency.CLP)
-    category: ExpenseCategory = Field(default=ExpenseCategory.GENERAL)
+    category_id: int = Field(foreign_key="categories.id", index=True)
     date: datetime = Field(default_factory=minimum_date_factory)
     description: str | None = Field(default=None)
 
@@ -136,12 +136,42 @@ class CategoryPattern(SQLModel, table=True):
 
     id: int | None = Field(default=None, primary_key=True)
     category_id: int = Field(foreign_key="categories.id")
+    # NULL for the builtin catalog rows shared by everyone. Set when the row
+    # belongs to a user: their own category, or their fork of a builtin one.
+    user_id: int | None = Field(default=None, foreign_key="users.id", index=True)
     pattern: str
+
+
+class CategoryOverride(SQLModel, table=True):
+    """Per-user customization of a global (builtin) category.
+
+    Builtin categories are shared rows, so a user cannot edit them in place.
+    An override carries the user's rename and marks whether they took over the
+    keyword set; once ``patterns_overridden`` is set, only that user's
+    ``CategoryPattern`` rows apply for them and the builtin ones are ignored.
+    """
+
+    __tablename__ = "category_overrides"
+
+    id: int | None = Field(default=None, primary_key=True)
+    user_id: int = Field(foreign_key="users.id", index=True)
+    category_id: int = Field(foreign_key="categories.id", index=True)
+    name: str | None = Field(default=None)
+    patterns_overridden: bool = Field(default=False)
 
 
 class CategoryCreate(SQLModel):
     name: str
+    # ``pattern`` is the original single-keyword shape, kept for compatibility.
     pattern: str | None = None
+    patterns: list[str] | None = None
+
+
+class CategoryUpdate(SQLModel):
+    """Partial update: omitted fields are left untouched."""
+
+    name: str | None = None
+    patterns: list[str] | None = None
 
 
 class CategoryRead(SQLModel):
@@ -151,6 +181,9 @@ class CategoryRead(SQLModel):
     name_en: str
     name_es: str
     is_custom: bool
+    # True when the user customized this builtin category (renamed it or took
+    # over its keywords), so the UI can offer "reset to defaults".
+    is_modified: bool = False
     patterns: list[str] = []
 
     model_config: ClassVar[dict[str, Any]] = {"from_attributes": True}
@@ -187,9 +220,12 @@ class TransferenceRead(SQLModel):
     recipient: str
     amount: float
     currency: Currency
-    category: ExpenseCategory
+    # Kept for API compatibility: same value as ``category_slug``.
+    category: str
+    category_id: int
     category_slug: str
     category_name: str
+    category_is_custom: bool = False
     date: datetime
     description: str | None = None
 

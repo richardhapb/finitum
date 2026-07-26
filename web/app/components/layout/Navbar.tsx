@@ -38,6 +38,12 @@ export function Navbar() {
             >
               Profile
             </Link>
+            <Link
+              to="/categories"
+              className="text-sm text-gray-300 hover:text-white transition-colors"
+            >
+              Categories
+            </Link>
           </div>
         </div>
         <div className="flex items-center gap-4">

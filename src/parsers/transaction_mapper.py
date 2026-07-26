@@ -17,14 +17,14 @@ def expense_to_db_model(expense: Expense, category_id: int) -> DBExpense:
     )
 
 
-def transference_to_db_model(transference: Transference) -> DBTransference:
+def transference_to_db_model(transference: Transference, category_id: int) -> DBTransference:
     """Convert to database model"""
 
     return DBTransference(
         recipient=transference.recipient,
         amount=transference.value,
         currency=transference.currency,
-        category=transference.category,
+        category_id=category_id,
         date=transference.date,
         description="Extracted from email",
     )

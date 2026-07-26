@@ -97,12 +97,32 @@ export interface Category {
   name_en: string;
   name_es: string;
   is_custom: boolean;
+  /** A built-in category the user renamed or whose keywords they replaced. */
+  is_modified: boolean;
   patterns: string[];
 }
 
 export interface CreateCategoryRequest {
   name: string;
+  /** Legacy single-keyword field, still accepted by the API. */
   pattern?: string;
+  patterns?: string[];
+}
+
+export interface UpdateCategoryRequest {
+  name?: string;
+  patterns?: string[];
+}
+
+export interface DeleteCategoryResponse {
+  msg: string;
+  reassigned_expenses: number;
+}
+
+export interface RecategorizeResponse {
+  msg: string;
+  expenses_updated: number;
+  transferences_updated: number;
 }
 
 export interface GenericResponse {

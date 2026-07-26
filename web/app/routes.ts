@@ -11,5 +11,6 @@ export default [
   layout("routes/protected.tsx", [
     route("dashboard", "routes/dashboard.tsx"),
     route("profile", "routes/profile.tsx"),
+    route("categories", "routes/categories.tsx"),
   ]),
 ] satisfies RouteConfig;
